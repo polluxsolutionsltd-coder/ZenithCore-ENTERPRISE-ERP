@@ -8,6 +8,7 @@ ZenithCore is Pollux Solutions Ltd's ERP product for Kenyan institutions, built 
 | --- | --- |
 | `zenithcore-payroll-ke/` | Kenyan payroll engine: PAYE, NSSF, SHIF, Affordable Housing Levy, NITA, HELB, reliefs, caps and the two-thirds deduction rule. Plain Java, no iDempiere dependency, so it can be tested on its own and wrapped as an iDempiere plug-in. |
 | `zenithcore-idempiere-payroll/` | iDempiere 13 plug-in: runs the payroll engine inside iDempiere. First process: Kenyan Payslip Preview. Build and deploy steps in its README. |
+| `zenithcore-idempiere-theme/` | ZenithCore look and feel for iDempiere: logo, brand colours, login page and browser title. |
 | `docs/adr/` | Architecture decision records. |
 | `docs/pending-critical.md` | Items that block a go-live and wait on outside parties. |
 | `docs/payroll/` | The Kenyan statutory rules the engine implements, with legal basis and what must be re-validated. |

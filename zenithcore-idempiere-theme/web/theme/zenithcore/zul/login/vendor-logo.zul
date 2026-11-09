@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+Derived from iDempiere's iceblue_c theme (Copyright (C) 2009 Low Heng Sin, Idalica Corporation), GPLv2.
+ZenithCore changes: Pollux Solutions Ltd.
+-->
+<zk>
+<zscript>
+    import org.compiere.Adempiere;
+	var isVersionShown = Adempiere.isVersionShown();
+</zscript>
+<div style="margin: 5px;">
+	<hlayout use="org.adempiere.webui.component.FlexHlayout" align="center">
+		<a href="https://www.pollux.co.ke" target="_blank"><image src="~./theme/zenithcore/images/icon-180.png" style="height: 80px;"/></a>
+		<vlayout style="margin-left: 12px; margin-right: 5px;">
+			<label value="ZenithCore Enterprise ERP" sclass="zc-vendor-name"/>
+			<label value="by Pollux Solutions Ltd" sclass="zc-vendor-by"/>
+			<label value="Built on iDempiere 13" sclass="zc-vendor-by" if="${isVersionShown == true}"/>
+		</vlayout>
+	</hlayout>
+</div>
+</zk>
