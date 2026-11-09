@@ -1,4 +1,4 @@
-package com.polluxsolutions.zenithcore.payroll.ke;
+package ke.co.pollux.zenithcore.payroll.ke;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;

@@ -1,8 +1,8 @@
-package com.polluxsolutions.zenithcore.payroll.ke;
+package ke.co.pollux.zenithcore.payroll.ke;
 
-import com.polluxsolutions.zenithcore.payroll.ke.PrePayrollChecks.CheckResult;
-import com.polluxsolutions.zenithcore.payroll.ke.PrePayrollChecks.EmployeeRecord;
-import com.polluxsolutions.zenithcore.payroll.ke.PrePayrollChecks.Severity;
+import ke.co.pollux.zenithcore.payroll.ke.PrePayrollChecks.CheckResult;
+import ke.co.pollux.zenithcore.payroll.ke.PrePayrollChecks.EmployeeRecord;
+import ke.co.pollux.zenithcore.payroll.ke.PrePayrollChecks.Severity;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;

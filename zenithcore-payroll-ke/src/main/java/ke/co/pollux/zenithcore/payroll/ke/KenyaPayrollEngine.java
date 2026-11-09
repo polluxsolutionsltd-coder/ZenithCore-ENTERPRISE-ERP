@@ -1,4 +1,4 @@
-package com.polluxsolutions.zenithcore.payroll.ke;
+package ke.co.pollux.zenithcore.payroll.ke;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -8,9 +8,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static com.polluxsolutions.zenithcore.payroll.ke.Money.max;
-import static com.polluxsolutions.zenithcore.payroll.ke.Money.min;
-import static com.polluxsolutions.zenithcore.payroll.ke.Money.round;
+import static ke.co.pollux.zenithcore.payroll.ke.Money.max;
+import static ke.co.pollux.zenithcore.payroll.ke.Money.min;
+import static ke.co.pollux.zenithcore.payroll.ke.Money.round;
 
 /**
  * Calculates Kenyan monthly pay for one employee using the statutory rate set in force on the pay date.

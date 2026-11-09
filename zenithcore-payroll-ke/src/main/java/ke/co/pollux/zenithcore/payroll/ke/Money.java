@@ -1,4 +1,4 @@
-package com.polluxsolutions.zenithcore.payroll.ke;
+package ke.co.pollux.zenithcore.payroll.ke;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
