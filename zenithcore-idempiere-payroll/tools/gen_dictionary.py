@@ -38,13 +38,16 @@ AD_USER_REF = 110
 
 # Existing iDempiere elements reused by name (ColumnName -> AD_Element_ID looked up at run time)
 CORE_ELEMENTS = {"AD_Client_ID", "AD_Org_ID", "IsActive", "Created", "CreatedBy", "Updated", "UpdatedBy",
-                 "C_BPartner_ID", "Name", "Description", "Processed"}
+                 "C_BPartner_ID", "Name", "Description", "Processed", "C_AcctSchema_ID", "GL_Journal_ID",
+                 "GL_Category_ID"}
 
 STATUS_REF_ID = 1090000
 STATUS_LIST = [("DR", "Drafted"), ("CA", "Calculated"), ("AP", "Approved"), ("CO", "Completed")]
 EMPLOYEE_VAL_RULE_ID = 1090000
 
-PROC_CALC, PROC_APPROVE = 1090001, 1090002
+PROC_CALC, PROC_APPROVE, PROC_COMPLETE = 1090001, 1090002, 1090003
+ACCOUNT_REF_VALUE = 362  # C_ElementValue (trx): posting accounts only
+ACCOUNT_VAL_RULE = 252   # accounts of the record's accounting schema
 PROCESSES = [
     (PROC_CALC, "ZC_PayrollCalculate", "Calculate Payroll",
      "Runs pre-payroll checks, then calculates every active employee for the pay date and replaces the payroll lines.",
@@ -52,7 +55,17 @@ PROCESSES = [
     (PROC_APPROVE, "ZC_PayrollApprove", "Approve Payroll",
      "Approves a calculated payroll. The person who calculated it cannot approve it.",
      "ke.co.pollux.zenithcore.payroll.idempiere.process.PayrollRunApprove"),
+    (PROC_COMPLETE, "ZC_PayrollComplete", "Complete Payroll",
+     "Posts an approved payroll to the general ledger as a completed GL journal and closes the run. "
+     "The person who calculated it cannot complete it.",
+     "ke.co.pollux.zenithcore.payroll.idempiere.process.PayrollRunComplete"),
 ]
+
+
+def acct(col, name, help_text, mandatory=True):
+    return dict(col=col, name=name, ref=SEARCH, refvalue=ACCOUNT_REF_VALUE, valrule=ACCOUNT_VAL_RULE,
+                ddl="NUMERIC(10)" + (" NOT NULL" if mandatory else ""), mandatory=mandatory, fk="C_ElementValue",
+                help=help_text)
 
 
 def amt(col, name, **kw):
@@ -116,6 +129,9 @@ TABLES = [
         dict(col="Processed", name="Processed", ref=YESNO, ddl="CHAR(1) DEFAULT 'N' NOT NULL", default="N",
              mandatory=True, readonly=True,
              help="Set when the payroll is approved; an approved payroll cannot be changed."),
+        dict(col="ZC_Complete", name="Complete Payroll", ref=BUTTON, ddl="CHAR(1)", length=1, process=PROC_COMPLETE,
+             always=True),
+        dict(col="GL_Journal_ID", name="GL journal", ref=TABLEDIR, ddl="NUMERIC(10)", readonly=True, fk="GL_Journal"),
     ]),
     dict(id=1090002, table="ZC_PayrollLine", name="Payroll Line (Kenya)", window=1090001, cols=[
         dict(col="ZC_PayrollRun_ID", name="Payroll run", ref=TABLEDIR, ddl="NUMERIC(10) NOT NULL", mandatory=True,
@@ -152,6 +168,27 @@ TABLES = [
         amt("ZC_EmployerCost", "Employer cost", readonly=True),
         dict(col="ZC_Trace", name="Calculation working", ref=TEXT, ddl="VARCHAR(4000)", length=4000, readonly=True),
     ]),
+    dict(id=1090003, table="ZC_PayrollAcct", name="Payroll Accounts (Kenya)", window=1090002, cols=[
+        dict(col="C_AcctSchema_ID", name="Accounting schema", ref=TABLEDIR, ddl="NUMERIC(10) NOT NULL",
+             mandatory=True, identifier=1, default="@$C_AcctSchema_ID@", fk="C_AcctSchema"),
+        acct("ZC_SalariesExpenseAcct_ID", "Salaries expense", "Debited with gross pay."),
+        acct("ZC_EmployerCostExpenseAcct_ID", "Employer statutory cost",
+             "Debited with employer NSSF, employer Housing Levy and NITA."),
+        acct("ZC_PAYEPayableAcct_ID", "PAYE payable", "Credited with PAYE, due to KRA by the 9th."),
+        acct("ZC_NSSFPayableAcct_ID", "NSSF payable", "Credited with employee and employer NSSF."),
+        acct("ZC_SHIFPayableAcct_ID", "SHIF payable", "Credited with SHIF, due to SHA."),
+        acct("ZC_HousingLevyPayableAcct_ID", "Housing Levy payable",
+             "Credited with employee and employer Affordable Housing Levy."),
+        acct("ZC_NITAPayableAcct_ID", "NITA payable", "Credited with the NITA levy."),
+        acct("ZC_HELBPayableAcct_ID", "HELB payable", "Credited with HELB loan deductions."),
+        acct("ZC_PensionInsPayableAcct_ID", "Pension and insurance payable",
+             "Credited with employee pension contributions and insurance premiums."),
+        acct("ZC_StaffLoanAcct_ID", "Staff loans receivable", "Credited with staff loan recoveries."),
+        acct("ZC_SaccoUnionPayableAcct_ID", "SACCO and union payable", "Credited with SACCO deductions and union dues."),
+        acct("ZC_NetSalariesPayableAcct_ID", "Net salaries payable", "Credited with net pay, cleared by the bank payment."),
+        dict(col="GL_Category_ID", name="GL category", ref=TABLEDIR, ddl="NUMERIC(10)", fk="GL_Category",
+             help="Category of the payroll journal, for example Payroll. Empty means the default category."),
+    ]),
 ]
 
 WINDOWS = [
@@ -161,11 +198,15 @@ WINDOWS = [
          desc="Monthly Kenyan payroll: checks, calculation and approval", wtype="T",
          tabs=[dict(id=1090001, table=1090001, name="Payroll Run", level=0, seq=10),
                dict(id=1090002, table=1090002, name="Lines", level=1, seq=20, readonly=True, link="ZC_PayrollRun_ID")]),
+    dict(id=1090002, name="Payroll Accounts (Kenya)",
+         desc="General ledger accounts the payroll posts to, one setup per accounting schema", wtype="M",
+         tabs=[dict(id=1090003, table=1090003, name="Payroll Accounts", level=0, seq=10)]),
 ]
 
 MENUS = [  # (id, name, window, seq) under the ZenithCore folder 1090001
     (1090002, "Employee Pay Data (Kenya)", 1090000, 20),
     (1090003, "Payroll Run (Kenya)", 1090001, 30),
+    (1090004, "Payroll Accounts (Kenya)", 1090002, 40),
 ]
 
 STD = ["AD_Client_ID", "AD_Org_ID", "IsActive", "Created", "CreatedBy", "Updated", "UpdatedBy"]
@@ -273,7 +314,7 @@ def main():
                                       AMOUNT: 22, INTEGER: 10}.get(c["ref"], 10))
             w(f"INSERT INTO AD_Column (AD_Column_ID,AD_Client_ID,AD_Org_ID,IsActive,Created,CreatedBy,Updated,UpdatedBy,Name,Description,Version,EntityType,ColumnName,AD_Table_ID,AD_Reference_ID,AD_Reference_Value_ID,AD_Val_Rule_ID,AD_Process_ID,FieldLength,DefaultValue,IsKey,IsParent,IsMandatory,IsUpdateable,IsIdentifier,SeqNo,IsTranslated,IsEncrypted,IsSelectionColumn,AD_Element_ID,IsAlwaysUpdateable,IsAutocomplete,IsAllowCopy,IsToolbarButton,IsSecure,IsPartitionKey,FKConstraintType,AD_Column_UU) "
               f"SELECT {cid},0,0,'Y',now(),100,now(),100,{name_expr},{q(c.get('help'))},0,{q(ENTITY)},{q(c['col'])},{tid},{c['ref']},{q(c.get('refvalue'))},{q(c.get('valrule'))},{q(c.get('process'))},{length},{q(c.get('default'))},"
-              f"{q('Y' if c.get('key') else 'N')},{q('Y' if c.get('parent') else 'N')},{q('Y' if c.get('mandatory') else 'N')},{q(updateable)},{q('Y' if c.get('identifier') else 'N')},{c.get('identifier', 0)},'N','N','N',{el},'N','N','Y',{q('N' if c['ref'] == BUTTON else 'Y')},'N','N',{q('D' if c.get('fk') else 'N')},{q(uu('column', tn + '.' + c['col']))} "
+              f"{q('Y' if c.get('key') else 'N')},{q('Y' if c.get('parent') else 'N')},{q('Y' if c.get('mandatory') else 'N')},{q(updateable)},{q('Y' if c.get('identifier') else 'N')},{c.get('identifier', 0)},'N','N','N',{el},{q('Y' if c.get('always') else 'N')},'N','Y',{q('N' if c['ref'] == BUTTON else 'Y')},'N','N',{q('D' if c.get('fk') else 'N')},{q(uu('column', tn + '.' + c['col']))} "
               f"WHERE NOT EXISTS (SELECT 1 FROM AD_Column WHERE AD_Column_ID={cid});")
         w("")
 
