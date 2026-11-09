@@ -1,4 +1,11 @@
--- Development only: give the GardenWorld Admin demo role access to the ZenithCore process.
+-- Development only (GardenWorld demo database): give the GardenWorld Admin (102) and
+-- GardenWorld User (103) roles access to ZenithCore windows and processes. Safe to re-run.
 INSERT INTO AD_Process_Access (AD_Process_ID,AD_Role_ID,AD_Client_ID,AD_Org_ID,IsActive,Created,CreatedBy,Updated,UpdatedBy,IsReadWrite,AD_Process_Access_UU)
-SELECT 1090000,102,11,0,'Y',now(),100,now(),100,'Y','5a0c1d30-9b5e-4f0e-9c1a-2a6f0b7e0501'
-WHERE NOT EXISTS (SELECT 1 FROM AD_Process_Access WHERE AD_Process_ID=1090000 AND AD_Role_ID=102);
+SELECT p.id,r.id,11,0,'Y',now(),100,now(),100,'Y',gen_random_uuid()
+FROM (VALUES (1090000),(1090001),(1090002)) p(id), (VALUES (102),(103)) r(id)
+WHERE NOT EXISTS (SELECT 1 FROM AD_Process_Access WHERE AD_Process_ID=p.id AND AD_Role_ID=r.id);
+
+INSERT INTO AD_Window_Access (AD_Window_ID,AD_Role_ID,AD_Client_ID,AD_Org_ID,IsActive,Created,CreatedBy,Updated,UpdatedBy,IsReadWrite,AD_Window_Access_UU)
+SELECT w.id,r.id,11,0,'Y',now(),100,now(),100,'Y',gen_random_uuid()
+FROM (VALUES (1090000),(1090001)) w(id), (VALUES (102),(103)) r(id)
+WHERE NOT EXISTS (SELECT 1 FROM AD_Window_Access WHERE AD_Window_ID=w.id AND AD_Role_ID=r.id);
