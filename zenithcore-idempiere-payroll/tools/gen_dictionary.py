@@ -46,6 +46,7 @@ STATUS_LIST = [("DR", "Drafted"), ("CA", "Calculated"), ("AP", "Approved"), ("CO
 EMPLOYEE_VAL_RULE_ID = 1090000
 
 PROC_CALC, PROC_APPROVE, PROC_COMPLETE, PROC_PAYSLIPS, PROC_SCHEDULES = 1090001, 1090002, 1090003, 1090004, 1090005
+PROC_ROLES = 1090006
 ACCOUNT_REF_VALUE = 362  # C_ElementValue (trx): posting accounts only
 ACCOUNT_VAL_RULE = 252   # accounts of the record's accounting schema
 PROCESSES = [
@@ -66,6 +67,10 @@ PROCESSES = [
      "Creates the PAYE (P10), NSSF, SHIF, Housing Levy, NITA, HELB and bank schedules for an approved or completed "
      "payroll as CSV files in a zip, and attaches it to the run.",
      "ke.co.pollux.zenithcore.payroll.idempiere.process.PayrollRunSchedules"),
+    (PROC_ROLES, "ZC_PayrollRoleSetup", "Set Up Payroll Roles",
+     "Creates or refreshes the Payroll Officer, HR Head and Finance Head roles in this client, so that no one person "
+     "can calculate, approve and post a payroll.",
+     "ke.co.pollux.zenithcore.payroll.idempiere.process.PayrollRoleSetup"),
 ]
 
 
@@ -196,6 +201,12 @@ TABLES = [
         dict(col="ZC_Department", name="Department", ref=STRING, ddl="VARCHAR(60)", length=60, readonly=True),
         dict(col="ZC_BankName", name="Bank", ref=STRING, ddl="VARCHAR(60)", length=60, readonly=True),
         dict(col="ZC_BankAccountNo", name="Bank account", ref=STRING, ddl="VARCHAR(40)", length=40, readonly=True),
+        # Arrears (two-thirds rule): brought into this run, and carried out of it to the next
+        amt("ZC_BroughtForward", "Arrears brought forward", readonly=True),
+        amt("ZC_HELBArrears", "HELB carried forward", readonly=True),
+        amt("ZC_StaffLoanArrears", "Staff loan carried forward", readonly=True),
+        amt("ZC_SACCOArrears", "SACCO carried forward", readonly=True),
+        amt("ZC_UnionArrears", "Union dues carried forward", readonly=True),
     ]),
     dict(id=1090003, table="ZC_PayrollAcct", name="Payroll Accounts (Kenya)", window=1090002, cols=[
         dict(col="C_AcctSchema_ID", name="Accounting schema", ref=TABLEDIR, ddl="NUMERIC(10) NOT NULL",
@@ -236,6 +247,10 @@ MENUS = [  # (id, name, window, seq) under the ZenithCore folder 1090001
     (1090002, "Employee Pay Data (Kenya)", 1090000, 20),
     (1090003, "Payroll Run (Kenya)", 1090001, 30),
     (1090004, "Payroll Accounts (Kenya)", 1090002, 40),
+]
+
+PROCESS_MENUS = [  # (id, name, process, seq) under the ZenithCore folder 1090001
+    (1090005, "Set Up Payroll Roles", PROC_ROLES, 50),
 ]
 
 STD = ["AD_Client_ID", "AD_Org_ID", "IsActive", "Created", "CreatedBy", "Updated", "UpdatedBy"]
@@ -375,6 +390,11 @@ def main():
     for mid, name, wid, seqno in MENUS:
         w(f"INSERT INTO AD_Menu (AD_Menu_ID,AD_Client_ID,AD_Org_ID,IsActive,Created,CreatedBy,Updated,UpdatedBy,Name,Action,AD_Window_ID,IsSummary,IsSOTrx,IsReadOnly,EntityType,AD_Menu_UU) "
           f"SELECT {mid},0,0,'Y',now(),100,now(),100,{q(name)},'W',{wid},'N','N','N',{q(ENTITY)},{q(uu('menu', name))} WHERE NOT EXISTS (SELECT 1 FROM AD_Menu WHERE AD_Menu_ID={mid});")
+        w(f"INSERT INTO AD_TreeNodeMM (AD_Tree_ID,Node_ID,AD_Client_ID,AD_Org_ID,IsActive,Created,CreatedBy,Updated,UpdatedBy,Parent_ID,SeqNo,AD_TreeNodeMM_UU) "
+          f"SELECT 10,{mid},0,0,'Y',now(),100,now(),100,1090001,{seqno},{q(uu('treenode', str(mid)))} WHERE NOT EXISTS (SELECT 1 FROM AD_TreeNodeMM WHERE AD_Tree_ID=10 AND Node_ID={mid});")
+    for mid, name, pid, seqno in PROCESS_MENUS:
+        w(f"INSERT INTO AD_Menu (AD_Menu_ID,AD_Client_ID,AD_Org_ID,IsActive,Created,CreatedBy,Updated,UpdatedBy,Name,Action,AD_Process_ID,IsSummary,IsSOTrx,IsReadOnly,EntityType,AD_Menu_UU) "
+          f"SELECT {mid},0,0,'Y',now(),100,now(),100,{q(name)},'P',{pid},'N','N','N',{q(ENTITY)},{q(uu('menu', name))} WHERE NOT EXISTS (SELECT 1 FROM AD_Menu WHERE AD_Menu_ID={mid});")
         w(f"INSERT INTO AD_TreeNodeMM (AD_Tree_ID,Node_ID,AD_Client_ID,AD_Org_ID,IsActive,Created,CreatedBy,Updated,UpdatedBy,Parent_ID,SeqNo,AD_TreeNodeMM_UU) "
           f"SELECT 10,{mid},0,0,'Y',now(),100,now(),100,1090001,{seqno},{q(uu('treenode', str(mid)))} WHERE NOT EXISTS (SELECT 1 FROM AD_TreeNodeMM WHERE AD_Tree_ID=10 AND Node_ID={mid});")
     print("\n".join(out))

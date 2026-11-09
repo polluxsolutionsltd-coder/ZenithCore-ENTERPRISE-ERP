@@ -4,7 +4,9 @@ import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.adempiere.base.annotation.Process;
@@ -16,6 +18,7 @@ import org.compiere.process.SvrProcess;
 import org.compiere.util.AdempiereUserError;
 import org.compiere.util.DB;
 
+import ke.co.pollux.zenithcore.payroll.ke.DeductionArrears;
 import ke.co.pollux.zenithcore.payroll.ke.EmployeePayInput;
 import ke.co.pollux.zenithcore.payroll.ke.KenyaPayrollEngine;
 import ke.co.pollux.zenithcore.payroll.ke.Money;
@@ -57,6 +60,7 @@ public class PayrollRunCalculate extends SvrProcess {
         }
         Timestamp payTs = (Timestamp) run.get_Value("ZC_PayDate");
         LocalDate payDate = payTs.toLocalDateTime().toLocalDate();
+        checkSequence(run, payTs);
 
         String where = "IsActive='Y' AND ZC_IsSuspended='N' AND ZC_StartDate<=? AND (ZC_EndDate IS NULL OR ZC_EndDate>=?)";
         List<Object> params = new ArrayList<>(List.of(payTs, payTs));
@@ -96,7 +100,10 @@ public class PayrollRunCalculate extends SvrProcess {
         BigDecimal gross = Money.ZERO, paye = Money.ZERO, nssf = Money.ZERO, shif = Money.ZERO, levy = Money.ZERO,
                 net = Money.ZERO, cost = Money.ZERO;
         for (PO e : employees) {
-            PayResult r = engine.calculate(input(e), payDate);
+            Arrears prev = previousArrears(run, e.get_ID(), payTs);
+            DeductionArrears.BroughtForward bf = DeductionArrears.bringForward(input(e), prev.amounts(), prev.source());
+            PayResult r = engine.calculate(bf.input(), payDate);
+            Map<String, BigDecimal> carry = DeductionArrears.toCarry(r);
             PO line = MTable.get(getCtx(), LINE).getPO(0, get_TrxName());
             line.setAD_Org_ID(run.getAD_Org_ID());
             set(line, "ZC_PayrollRun_ID", run.get_ID());
@@ -129,7 +136,15 @@ public class PayrollRunCalculate extends SvrProcess {
             set(line, "ZC_EmployerHousingLevy", r.employerHousingLevy());
             set(line, "ZC_NITA", r.nita());
             set(line, "ZC_EmployerCost", r.employerCost());
-            set(line, "ZC_Trace", truncate(String.join("\n", r.trace())));
+            List<String> trace = new ArrayList<>(bf.trace());
+            trace.addAll(r.trace());
+            DeductionArrears.notCarried(r).forEach((name, amt) -> trace.add("  " + name + ": " + Money.fmt(amt)
+                    + " not deducted and not carried forward: refer to HR"));
+            set(line, "ZC_Trace", truncate(String.join("\n", trace)));
+            set(line, "ZC_BroughtForward", bf.total());
+            for (Map.Entry<String, String> a : ARREARS.entrySet()) {
+                set(line, a.getValue(), carry.getOrDefault(a.getKey(), Money.ZERO));
+            }
             for (String col : SNAPSHOT) {
                 set(line, col, e.get_Value(col));
             }
@@ -162,6 +177,64 @@ public class PayrollRunCalculate extends SvrProcess {
         run.saveEx();
         return "Calculated " + employees.size() + " employees. Gross " + Money.fmt(gross) + ", PAYE " + Money.fmt(paye)
                 + ", net pay " + Money.fmt(net) + ". Next: approval by someone other than you.";
+    }
+
+    /** Deductions carried forward, and the line column that holds each. */
+    static final Map<String, String> ARREARS = Map.of(KenyaPayrollEngine.HELB, "ZC_HELBArrears",
+            KenyaPayrollEngine.STAFF_LOAN, "ZC_StaffLoanArrears", KenyaPayrollEngine.SACCO, "ZC_SACCOArrears",
+            KenyaPayrollEngine.UNION, "ZC_UnionArrears");
+
+    record Arrears(Map<String, BigDecimal> amounts, String source) {
+    }
+
+    /**
+     * Arrears carried out of the employee's most recent approved or completed payroll before this pay
+     * date. Arrears are only ever taken from the employee's latest line, so they are brought forward once.
+     */
+    private Arrears previousArrears(PO run, int employeePayId, Timestamp payDate) {
+        List<Object> row = DB.getSQLValueObjectsEx(get_TrxName(),
+                "SELECT l.ZC_HELBArrears, l.ZC_StaffLoanArrears, l.ZC_SACCOArrears, l.ZC_UnionArrears, r.Name "
+                        + "FROM ZC_PayrollLine l JOIN ZC_PayrollRun r ON r.ZC_PayrollRun_ID=l.ZC_PayrollRun_ID "
+                        + "WHERE l.ZC_EmployeePay_ID=? AND r.ZC_PayrollRun_ID<>? AND r.AD_Client_ID=? "
+                        + "AND r.ZC_PayrollStatus IN ('AP','CO') AND r.ZC_PayDate<? "
+                        + "ORDER BY r.ZC_PayDate DESC, r.ZC_PayrollRun_ID DESC FETCH FIRST 1 ROWS ONLY",
+                employeePayId, run.get_ID(), run.getAD_Client_ID(), payDate);
+        Map<String, BigDecimal> m = new LinkedHashMap<>();
+        if (row == null || row.isEmpty()) {
+            return new Arrears(m, "");
+        }
+        String[] names = {KenyaPayrollEngine.HELB, KenyaPayrollEngine.STAFF_LOAN, KenyaPayrollEngine.SACCO,
+                KenyaPayrollEngine.UNION};
+        for (int i = 0; i < names.length; i++) {
+            BigDecimal v = (BigDecimal) row.get(i);
+            if (v != null && v.signum() > 0) {
+                m.put(names[i], v);
+            }
+        }
+        return new Arrears(m, (String) row.get(4));
+    }
+
+    /**
+     * Payrolls of one organization are calculated in date order, so arrears move forward exactly once:
+     * an earlier payroll that is not yet approved, or a later one that is already approved, stops this one.
+     */
+    private void checkSequence(PO run, Timestamp payDate) {
+        String earlier = DB.getSQLValueStringEx(get_TrxName(),
+                "SELECT MAX(Name) FROM ZC_PayrollRun WHERE AD_Client_ID=? AND AD_Org_ID=? AND ZC_PayrollRun_ID<>? "
+                        + "AND IsActive='Y' AND ZC_PayrollStatus IN ('DR','CA') AND ZC_PayDate<?",
+                run.getAD_Client_ID(), run.getAD_Org_ID(), run.get_ID(), payDate);
+        if (earlier != null) {
+            throw new AdempiereUserError("An earlier payroll (" + earlier + ") is not yet approved. "
+                    + "Approve it, or delete it if it is not needed, before calculating this one.");
+        }
+        String later = DB.getSQLValueStringEx(get_TrxName(),
+                "SELECT MIN(Name) FROM ZC_PayrollRun WHERE AD_Client_ID=? AND AD_Org_ID=? AND ZC_PayrollRun_ID<>? "
+                        + "AND ZC_PayrollStatus IN ('AP','CO') AND ZC_PayDate>?",
+                run.getAD_Client_ID(), run.getAD_Org_ID(), run.get_ID(), payDate);
+        if (later != null) {
+            throw new AdempiereUserError("A later payroll (" + later + ") is already approved. "
+                    + "A payroll cannot be calculated for an earlier date.");
+        }
     }
 
     static EmployeePayInput input(PO e) {

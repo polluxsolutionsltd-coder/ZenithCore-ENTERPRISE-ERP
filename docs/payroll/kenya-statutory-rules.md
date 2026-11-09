@@ -25,10 +25,11 @@ As at 9 November 2026. **Every rate here must be validated by a Kenyan payroll s
 ## Design choices to confirm with the payroll specialist
 
 1. **Base for NSSF, SHIF and Housing Levy** is gross cash pay (basic plus cash allowances and overtime). Non-cash benefits are excluded from these bases.
-2. **Wages for the two-thirds rule** are taken as gross cash pay. Statutory deductions are applied first; then HELB, pension, insurance premium, staff loan, SACCO and union dues in that order, each reduced if needed, with any shortfall carried forward.
+2. **Wages for the two-thirds rule** are taken as gross cash pay. Statutory deductions are applied first; then HELB, pension, insurance premium, staff loan, SACCO and union dues in that order, each reduced if needed. Shortfalls of HELB, staff loan, SACCO and union dues are carried forward to the next payroll as arrears, added to that month's amount and tested against the rule again (`DeductionArrears`). Shortfalls of pension and insurance premium are not carried forward; they are reported for HR to settle with the scheme or insurer.
 3. **Rounding**: each statutory component is rounded to the cent, half-up. Tax is summed across bands before rounding.
 4. **Post-retirement medical fund and mortgage interest** are treated as tax allowances paid outside payroll.
 5. **Insurance relief** is given on premiums deducted through payroll.
+6. **Pension and insurance cut by the two-thirds rule.** The engine currently gives allowable pension and insurance relief on the amounts due, even when the two-thirds rule deducts less. Confirm whether relief should follow the amount actually deducted in such months.
 
 ## Still to add
 
@@ -37,4 +38,4 @@ As at 9 November 2026. **Every rate here must be validated by a Kenyan payroll s
 - Disability exemption (first KES 150,000 per month exempt with a certificate).
 - Per diem and meal benefit thresholds.
 - Arrears and back pay spread over prior periods.
-- P10, NSSF, SHIF, Housing Levy, NITA, HELB and bank file formats, validated against the current templates.
+- P10, NSSF, SHIF, Housing Levy, NITA, HELB and bank file formats, validated against the current templates (CRIT-02).

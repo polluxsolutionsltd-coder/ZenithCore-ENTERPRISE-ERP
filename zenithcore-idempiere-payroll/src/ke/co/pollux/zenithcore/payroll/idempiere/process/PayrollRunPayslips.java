@@ -164,9 +164,32 @@ public class PayrollRunPayslips extends SvrProcess {
             net.addCell(c);
         }
         doc.add(net);
-        if (l.amt("ZC_CarriedForward").signum() > 0) {
-            Paragraph cf = new Paragraph("Two-thirds rule: deductions of " + currency + " " + money(l.amt("ZC_CarriedForward"))
-                    + " could not be taken this month and are carried forward.", LABEL);
+        List<String> notes = new java.util.ArrayList<>();
+        if (l.amt("ZC_BroughtForward").signum() > 0) {
+            notes.add("Deductions include arrears of " + currency + " " + money(l.amt("ZC_BroughtForward"))
+                    + " brought forward from the previous payroll.");
+        }
+        BigDecimal carried = BigDecimal.ZERO;
+        StringBuilder which = new StringBuilder();
+        for (String[] a : new String[][] {{"ZC_HELBArrears", "HELB"}, {"ZC_StaffLoanArrears", "staff loan"},
+                {"ZC_SACCOArrears", "SACCO"}, {"ZC_UnionArrears", "union dues"}}) {
+            BigDecimal v = l.amt(a[0]);
+            if (v.signum() > 0) {
+                carried = carried.add(v);
+                which.append(which.length() > 0 ? ", " : "").append(a[1]).append(" ").append(money(v));
+            }
+        }
+        if (carried.signum() > 0) {
+            notes.add("Two-thirds rule: " + currency + " " + money(carried) + " (" + which
+                    + ") could not be deducted this month and is carried forward to the next payroll.");
+        }
+        BigDecimal dropped = l.amt("ZC_CarriedForward").subtract(carried);
+        if (dropped.signum() > 0) {
+            notes.add("Two-thirds rule: " + currency + " " + money(dropped)
+                    + " of pension or insurance could not be deducted this month; HR will advise.");
+        }
+        for (String n : notes) {
+            Paragraph cf = new Paragraph(n, LABEL);
             cf.setSpacingBefore(4);
             doc.add(cf);
         }
