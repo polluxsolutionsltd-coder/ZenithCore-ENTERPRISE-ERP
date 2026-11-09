@@ -151,6 +151,11 @@ public class PayrollRunCalculate extends SvrProcess {
             for (String col : SNAPSHOT) {
                 set(line, col, e.get_Value(col));
             }
+            int positionId = e.get_ValueAsInt("ZC_Position_ID");
+            if (positionId > 0) {
+                PO pos = MTable.get(getCtx(), POSITION).getPO(positionId, get_TrxName());
+                set(line, "ZC_PositionName", pos.get_ValueAsString("Value") + " " + pos.get_ValueAsString("Name"));
+            }
             line.saveEx();
 
             gross = gross.add(r.grossPay());

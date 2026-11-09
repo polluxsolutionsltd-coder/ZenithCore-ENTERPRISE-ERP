@@ -114,7 +114,9 @@ public class PayrollRunPayslips extends SvrProcess {
         kv(emp, "National ID", l.text("ZC_NationalIDNo"));
         kv(emp, "NSSF no.", l.text("ZC_NSSFNo"));
         kv(emp, "SHA no.", l.text("ZC_SHANo"));
+        kv(emp, "Position", l.text("ZC_PositionName"));
         kv(emp, "Department", l.text("ZC_Department"));
+        kv(emp, "Bank", bankText(l).replace("(", "").replace(")", ""));
         kv(emp, "Pay date", new java.text.SimpleDateFormat("d MMMM yyyy", Locale.ENGLISH).format(run.get_Value("ZC_PayDate")));
         doc.add(emp);
         doc.add(spacer());

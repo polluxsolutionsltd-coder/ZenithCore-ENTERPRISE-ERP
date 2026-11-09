@@ -13,7 +13,7 @@ ZenithCore is Pollux Solutions Ltd's ERP product for Kenyan institutions, built 
 | `docs/pending-critical.md` | Items that block a go-live and wait on outside parties. |
 | `docs/payroll/` | The Kenyan statutory rules the engine implements, with legal basis and what must be re-validated. |
 
-Built so far in iDempiere: employee pay data, payroll run with pre-payroll checks, calculation, approval and GL posting, payroll account mapping per institution, PDF payslips and statutory schedules, arrears carried between payrolls, Payroll Officer / HR Head / Finance Head roles, establishment control (approved positions, headcount, salary ceilings), and two-person payroll reversal. Planned modules (not yet started): official statutory upload files (CRIT-02), P9 certificates, statutory return files, Phase 1 control plug-ins (supplier pre-qualification gate, audit-query register, opening-balance workbench, board pack).
+Built so far in iDempiere: employee pay data, payroll run with pre-payroll checks, calculation, approval and GL posting, payroll account mapping per institution, PDF payslips and statutory schedules, arrears carried between payrolls, Payroll Officer / HR Head / Finance Head roles, establishment control (approved positions, headcount, salary ceilings), two-person reopen and reversal, and an establishment report. Planned modules (not yet started): official statutory upload files (CRIT-02), P9 certificates, statutory return files, Phase 1 control plug-ins (supplier pre-qualification gate, audit-query register, opening-balance workbench, board pack).
 
 ## Pending critical items
 

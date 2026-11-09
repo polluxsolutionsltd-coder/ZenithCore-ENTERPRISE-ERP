@@ -48,6 +48,7 @@ EMPLOYEE_VAL_RULE_ID = 1090000
 PROC_CALC, PROC_APPROVE, PROC_COMPLETE, PROC_PAYSLIPS, PROC_SCHEDULES = 1090001, 1090002, 1090003, 1090004, 1090005
 PROC_ROLES = 1090006
 PROC_REQ_REVERSAL, PROC_REVERSE = 1090007, 1090008
+PROC_REQ_REOPEN, PROC_REOPEN, PROC_EST_REPORT = 1090009, 1090010, 1090011
 ACCOUNT_REF_VALUE = 362  # C_ElementValue (trx): posting accounts only
 ACCOUNT_VAL_RULE = 252   # accounts of the record's accounting schema
 PROCESSES = [
@@ -79,11 +80,25 @@ PROCESSES = [
      "Reverses the GL journal of a completed payroll whose reversal was requested by someone else, and marks the "
      "payroll Reversed. A corrected payroll can then be calculated for the same pay date.",
      "ke.co.pollux.zenithcore.payroll.idempiere.process.PayrollRunReverse"),
+    (PROC_REQ_REOPEN, "ZC_PayrollRequestReopen", "Request Reopen",
+     "Asks for an approved payroll that is not yet posted to be reopened for correction, giving the reason. "
+     "A different person must then reopen it.",
+     "ke.co.pollux.zenithcore.payroll.idempiere.process.PayrollRunRequestReopen"),
+    (PROC_REOPEN, "ZC_PayrollReopen", "Reopen Payroll",
+     "Reopens an approved payroll that is not yet posted, when someone else has requested it. The payroll returns "
+     "to Drafted and must be calculated and approved again.",
+     "ke.co.pollux.zenithcore.payroll.idempiere.process.PayrollRunReopen"),
+    (PROC_EST_REPORT, "ZC_EstablishmentReport", "Establishment Report",
+     "Approved, filled and vacant positions, over-establishment and monthly basic salary cost, as at a date.",
+     "ke.co.pollux.zenithcore.payroll.idempiere.process.EstablishmentReport"),
 ]
 
 # (id, process, column name, name, reference, length, mandatory, seq). The column's element must exist.
 PROCESS_PARAMS = [
     (1090020, PROC_REQ_REVERSAL, "ZC_ReversalReason", "Reason for reversal", TEXT, 2000, True, 10),
+    (1090021, PROC_REQ_REOPEN, "ZC_ReopenReason", "Reason for reopening", TEXT, 2000, True, 10),
+    (1090022, PROC_EST_REPORT, "DateTrx", "As at date", DATE, 7, True, 10, "@#Date@"),
+    (1090023, PROC_EST_REPORT, "AD_Org_ID", "Organization", TABLEDIR, 10, False, 20, "@#AD_Org_ID@"),
 ]
 
 
@@ -175,6 +190,14 @@ TABLES = [
              process=PROC_REQ_REVERSAL, always=True),
         dict(col="ZC_Reverse", name="Reverse Payroll", ref=BUTTON, ddl="CHAR(1)", length=1, process=PROC_REVERSE,
              always=True),
+        dict(col="ZC_ReopenReason", name="Reason for reopening", ref=TEXT, ddl="VARCHAR(2000)", length=2000,
+             readonly=True),
+        dict(col="ZC_ReopenRequestedUser_ID", name="Reopen requested by", ref=TABLE, refvalue=AD_USER_REF,
+             ddl="NUMERIC(10)", readonly=True, fk="AD_User"),
+        dict(col="ZC_RequestReopen", name="Request Reopen", ref=BUTTON, ddl="CHAR(1)", length=1,
+             process=PROC_REQ_REOPEN, always=True),
+        dict(col="ZC_Reopen", name="Reopen Payroll", ref=BUTTON, ddl="CHAR(1)", length=1, process=PROC_REOPEN,
+             always=True),
     ]),
     dict(id=1090002, table="ZC_PayrollLine", name="Payroll Line (Kenya)", window=1090001, cols=[
         dict(col="ZC_PayrollRun_ID", name="Payroll run", ref=TABLEDIR, ddl="NUMERIC(10) NOT NULL", mandatory=True,
@@ -232,6 +255,7 @@ TABLES = [
         amt("ZC_StaffLoanArrears", "Staff loan carried forward", readonly=True),
         amt("ZC_SACCOArrears", "SACCO carried forward", readonly=True),
         amt("ZC_UnionArrears", "Union dues carried forward", readonly=True),
+        dict(col="ZC_PositionName", name="Position", ref=STRING, ddl="VARCHAR(120)", length=120, readonly=True),
     ]),
     dict(id=1090003, table="ZC_PayrollAcct", name="Payroll Accounts (Kenya)", window=1090002, cols=[
         dict(col="C_AcctSchema_ID", name="Accounting schema", ref=TABLEDIR, ddl="NUMERIC(10) NOT NULL",
@@ -297,6 +321,7 @@ MENUS = [  # (id, name, window, seq) under the ZenithCore folder 1090001
 
 PROCESS_MENUS = [  # (id, name, process, seq) under the ZenithCore folder 1090001
     (1090005, "Set Up Payroll Roles", PROC_ROLES, 50),
+    (1090007, "Establishment Report", PROC_EST_REPORT, 17),
 ]
 
 STD = ["AD_Client_ID", "AD_Org_ID", "IsActive", "Created", "CreatedBy", "Updated", "UpdatedBy"]
@@ -449,9 +474,10 @@ def main():
           f"SELECT {mid},0,0,'Y',now(),100,now(),100,{q(name)},'P',{pid},'N','N','N',{q(ENTITY)},{q(uu('menu', name))} WHERE NOT EXISTS (SELECT 1 FROM AD_Menu WHERE AD_Menu_ID={mid});")
         w(f"INSERT INTO AD_TreeNodeMM (AD_Tree_ID,Node_ID,AD_Client_ID,AD_Org_ID,IsActive,Created,CreatedBy,Updated,UpdatedBy,Parent_ID,SeqNo,AD_TreeNodeMM_UU) "
           f"SELECT 10,{mid},0,0,'Y',now(),100,now(),100,1090001,{seqno},{q(uu('treenode', str(mid)))} WHERE NOT EXISTS (SELECT 1 FROM AD_TreeNodeMM WHERE AD_Tree_ID=10 AND Node_ID={mid});")
-    for ppid, pid, cn, name, ref, length, mand, seq in PROCESS_PARAMS:
-        w(f"INSERT INTO AD_Process_Para (AD_Process_Para_ID,AD_Client_ID,AD_Org_ID,IsActive,Created,CreatedBy,Updated,UpdatedBy,Name,AD_Process_ID,SeqNo,AD_Reference_ID,IsRange,FieldLength,IsMandatory,ColumnName,IsCentrallyMaintained,EntityType,IsEncrypted,AD_Element_ID,AD_Process_Para_UU) "
-          f"SELECT {ppid},0,0,'Y',now(),100,now(),100,{q(name)},{pid},{seq},{ref},'N',{length},{q('Y' if mand else 'N')},{q(cn)},'N',{q(ENTITY)},'N',"
+    for ppid, pid, cn, name, ref, length, mand, seq, *rest in PROCESS_PARAMS:
+        default = rest[0] if rest else None
+        w(f"INSERT INTO AD_Process_Para (AD_Process_Para_ID,AD_Client_ID,AD_Org_ID,IsActive,Created,CreatedBy,Updated,UpdatedBy,Name,AD_Process_ID,SeqNo,AD_Reference_ID,IsRange,FieldLength,IsMandatory,ColumnName,IsCentrallyMaintained,EntityType,IsEncrypted,{'DefaultValue,' if default else ''}AD_Element_ID,AD_Process_Para_UU) "
+          f"SELECT {ppid},0,0,'Y',now(),100,now(),100,{q(name)},{pid},{seq},{ref},'N',{length},{q('Y' if mand else 'N')},{q(cn)},'N',{q(ENTITY)},'N',{q(default) + ',' if default else ''}"
           f"(SELECT AD_Element_ID FROM AD_Element WHERE ColumnName={q(cn)}),{q(uu('para', str(ppid)))} WHERE NOT EXISTS (SELECT 1 FROM AD_Process_Para WHERE AD_Process_Para_ID={ppid});")
     print("\n".join(out))
 

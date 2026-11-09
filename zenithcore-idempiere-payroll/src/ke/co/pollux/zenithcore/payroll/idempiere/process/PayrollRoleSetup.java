@@ -33,7 +33,8 @@ public class PayrollRoleSetup extends SvrProcess {
     // ZenithCore dictionary
     static final int W_PAY_DATA = 1090000, W_RUN = 1090001, W_ACCOUNTS = 1090002, W_ESTABLISHMENT = 1090003;
     static final int P_PREVIEW = 1090000, P_CALC = 1090001, P_APPROVE = 1090002, P_COMPLETE = 1090003,
-            P_PAYSLIPS = 1090004, P_SCHEDULES = 1090005, P_REQUEST_REVERSAL = 1090007, P_REVERSE = 1090008;
+            P_PAYSLIPS = 1090004, P_SCHEDULES = 1090005, P_REQUEST_REVERSAL = 1090007, P_REVERSE = 1090008,
+            P_REQUEST_REOPEN = 1090009, P_REOPEN = 1090010, P_EST_REPORT = 1090011;
     // iDempiere core windows
     static final int W_BUSINESS_PARTNER = 123, W_GL_JOURNAL = 132;
 
@@ -45,20 +46,20 @@ public class PayrollRoleSetup extends SvrProcess {
             new RoleSpec("Payroll Officer",
                     "ZenithCore payroll: maintains pay data, calculates payroll, prints payslips and schedules",
                     Map.of(W_PAY_DATA, true, W_RUN, true, W_BUSINESS_PARTNER, true, W_ESTABLISHMENT, false),
-                    List.of(P_PREVIEW, P_CALC, P_PAYSLIPS, P_SCHEDULES)),
+                    List.of(P_PREVIEW, P_CALC, P_PAYSLIPS, P_SCHEDULES, P_REQUEST_REOPEN, P_EST_REPORT)),
             new RoleSpec("HR Head",
                     "ZenithCore payroll: maintains the establishment, reviews pay data, approves payroll runs and requests reversals",
                     Map.of(W_PAY_DATA, false, W_RUN, true, W_BUSINESS_PARTNER, false, W_ESTABLISHMENT, true),
-                    List.of(P_PREVIEW, P_APPROVE, P_PAYSLIPS, P_REQUEST_REVERSAL)),
+                    List.of(P_PREVIEW, P_APPROVE, P_PAYSLIPS, P_REQUEST_REVERSAL, P_REOPEN, P_EST_REPORT)),
             new RoleSpec("Finance Head",
                     "ZenithCore payroll: maintains payroll accounts, posts approved payroll runs and reverses them on request",
                     Map.of(W_PAY_DATA, false, W_RUN, true, W_ACCOUNTS, true, W_GL_JOURNAL, false, W_ESTABLISHMENT, false),
-                    List.of(P_COMPLETE, P_PAYSLIPS, P_SCHEDULES, P_REVERSE)));
+                    List.of(P_COMPLETE, P_PAYSLIPS, P_SCHEDULES, P_REVERSE, P_REQUEST_REOPEN, P_EST_REPORT)));
 
     /** All ZenithCore payroll windows and processes: access to any not granted is removed from these roles. */
     static final List<Integer> ZC_WINDOWS = List.of(W_PAY_DATA, W_RUN, W_ACCOUNTS, W_ESTABLISHMENT);
     static final List<Integer> ZC_PROCESSES = List.of(P_PREVIEW, P_CALC, P_APPROVE, P_COMPLETE, P_PAYSLIPS, P_SCHEDULES,
-            P_REQUEST_REVERSAL, P_REVERSE);
+            P_REQUEST_REVERSAL, P_REVERSE, P_REQUEST_REOPEN, P_REOPEN, P_EST_REPORT);
 
     @Override
     protected void prepare() {
