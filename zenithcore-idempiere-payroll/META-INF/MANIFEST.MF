@@ -1,0 +1,16 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: ZenithCore Kenyan Payroll for iDempiere
+Bundle-SymbolicName: ke.co.pollux.zenithcore.payroll.idempiere;singleton:=true
+Bundle-Version: 0.1.0.qualifier
+Bundle-Vendor: Pollux Solutions Ltd
+Bundle-RequiredExecutionEnvironment: JavaSE-17
+Require-Capability: osgi.ee;filter:="(&(osgi.ee=JavaSE)(version>=17))"
+Require-Bundle: org.adempiere.base;bundle-version="13.0.0"
+Import-Package: ke.co.pollux.zenithcore.payroll.ke;version="[0.1.0,1.0.0)",
+ org.osgi.framework
+Bundle-Activator: ke.co.pollux.zenithcore.payroll.idempiere.Activator
+Bundle-ActivationPolicy: lazy
+Bundle-ClassPath: .
+Automatic-Module-Name: ke.co.pollux.zenithcore.payroll.idempiere
+Service-Component: OSGI-INF/ke.co.pollux.zenithcore.payroll.idempiere.ProcessFactory.xml

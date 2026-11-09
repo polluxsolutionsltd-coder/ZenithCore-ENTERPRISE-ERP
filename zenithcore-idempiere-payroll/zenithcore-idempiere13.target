@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<?pde version="3.8"?>
+<target name="ZenithCore on iDempiere 13">
+  <locations>
+    <!-- All bundles of an installed iDempiere 13 server. Pass -Didempiere.home=/path/to/idempiere-server -->
+    <location path="${system_property:idempiere.home}/plugins" type="Directory"/>
+  </locations>
+  <targetJRE path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-17"/>
+</target>

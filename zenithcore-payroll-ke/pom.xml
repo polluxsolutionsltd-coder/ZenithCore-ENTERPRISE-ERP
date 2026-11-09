@@ -39,6 +39,25 @@
         <artifactId>maven-surefire-plugin</artifactId>
         <version>3.5.2</version>
       </plugin>
+      <!-- OSGi headers so the engine loads as a bundle inside iDempiere. It depends only on java.*. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>3.4.2</version>
+        <configuration>
+          <archive>
+            <manifestEntries>
+              <Bundle-ManifestVersion>2</Bundle-ManifestVersion>
+              <Bundle-SymbolicName>ke.co.pollux.zenithcore.payroll.ke</Bundle-SymbolicName>
+              <Bundle-Name>ZenithCore Kenyan Payroll Engine</Bundle-Name>
+              <Bundle-Vendor>Pollux Solutions Ltd</Bundle-Vendor>
+              <Bundle-Version>0.1.0.SNAPSHOT</Bundle-Version>
+              <Bundle-RequiredExecutionEnvironment>JavaSE-17</Bundle-RequiredExecutionEnvironment>
+              <Export-Package>ke.co.pollux.zenithcore.payroll.ke;version="0.1.0"</Export-Package>
+            </manifestEntries>
+          </archive>
+        </configuration>
+      </plugin>
     </plugins>
   </build>
 </project>

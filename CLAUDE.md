@@ -17,6 +17,11 @@
 - Worked-payslip tests in `KenyaPayrollEngineTest` were checked by hand; a Kenyan payroll specialist must confirm them before go-live.
 - Rule sources and items still to validate: `docs/payroll/kenya-statutory-rules.md`.
 
+## iDempiere plug-ins
+- Target platform: an installed iDempiere 13 server (`-Didempiere.home=...`). See `zenithcore-idempiere-payroll/README.md`.
+- Process classes need `@org.adempiere.base.annotation.Process`, or iDempiere will not find them.
+- Entity type `ZENITH`; dictionary IDs 1090000–1090999 until the dictionary ships as a 2Pack. Migration scripts must be safe to re-run.
+
 ## Pending critical items
 - CRIT-01 KRA eTIMS OSCU connector is on hold until the KRA specification documents are added under `docs/etims/`. Do not build it from guesses. Details: `docs/pending-critical.md`.
 
