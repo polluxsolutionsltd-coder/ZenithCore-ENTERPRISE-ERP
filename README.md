@@ -13,11 +13,14 @@ ZenithCore is Pollux Solutions Ltd's ERP product for Kenyan institutions, built 
 | `docs/pending-critical.md` | Items that block a go-live and wait on outside parties. |
 | `docs/payroll/` | The Kenyan statutory rules the engine implements, with legal basis and what must be re-validated. |
 
-Built so far in iDempiere: employee pay data, payroll run with pre-payroll checks, calculation, approval and GL posting, payroll account mapping per institution. Planned modules (not yet started): payslip and P10 reports, statutory return files, Phase 1 control plug-ins (supplier pre-qualification gate, audit-query register, opening-balance workbench, board pack).
+Built so far in iDempiere: employee pay data, payroll run with pre-payroll checks, calculation, approval and GL posting, payroll account mapping per institution, PDF payslips and statutory schedules. Planned modules (not yet started): official statutory upload files (CRIT-02), P9 certificates, statutory return files, Phase 1 control plug-ins (supplier pre-qualification gate, audit-query register, opening-balance workbench, board pack).
 
 ## Pending critical items
 
-- **CRIT-01, KRA eTIMS OSCU connector: on hold, critical.** Waiting for the KRA OSCU specification documents. Finance cannot go live without it. See [docs/pending-critical.md](docs/pending-critical.md).
+- **CRIT-01, KRA eTIMS OSCU connector: on hold, critical.** Waiting for the KRA OSCU specification documents. Finance cannot go live without it.
+- **CRIT-02, official upload layouts for payroll returns and the bank file: open, critical.** Waiting for the current KRA, NSSF, SHA, NITA, HELB and bank templates. Payroll can go live on the working schedules, with re-keying, but should not stay that way.
+
+See [docs/pending-critical.md](docs/pending-critical.md).
 
 ## Build
 

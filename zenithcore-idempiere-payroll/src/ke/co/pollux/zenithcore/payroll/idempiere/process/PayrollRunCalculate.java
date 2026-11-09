@@ -34,6 +34,11 @@ public class PayrollRunCalculate extends SvrProcess {
     static final String LINE = "ZC_PayrollLine";
     static final String EMP = "ZC_EmployeePay";
 
+    /** Pay data copied onto each line at calculation, so payslips and schedules show what was calculated. */
+    static final String[] SNAPSHOT = {"ZC_BasicSalary", "ZC_HouseAllowance", "ZC_CommuterAllowance", "ZC_Overtime",
+            "ZC_OtherAllowances", "ZC_NonCashBenefits", "ZC_PostRetirementMedical", "ZC_MortgageInterest", "ZC_KRAPin",
+            "ZC_NSSFNo", "ZC_SHANo", "ZC_NationalIDNo", "ZC_Department", "ZC_BankName", "ZC_BankAccountNo"};
+
     @Override
     protected void prepare() {
         // no parameters: runs on the current payroll run record
@@ -125,6 +130,9 @@ public class PayrollRunCalculate extends SvrProcess {
             set(line, "ZC_NITA", r.nita());
             set(line, "ZC_EmployerCost", r.employerCost());
             set(line, "ZC_Trace", truncate(String.join("\n", r.trace())));
+            for (String col : SNAPSHOT) {
+                set(line, col, e.get_Value(col));
+            }
             line.saveEx();
 
             gross = gross.add(r.grossPay());

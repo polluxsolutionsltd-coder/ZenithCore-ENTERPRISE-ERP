@@ -9,6 +9,9 @@ OSGi plug-in that brings the `zenithcore-payroll-ke` engine into iDempiere 13.
   - **Calculate Payroll** runs the pre-payroll checks (shared bank accounts, shared or invalid KRA PINs, missing NSSF/SHA numbers, missing bank details). Any blocking check stops the run and the results are saved on it. Otherwise it calculates every active, unsuspended employee of the run's organization whose start and end dates cover the pay date, and replaces the lines; each line keeps the full calculation working.
   - **Approve Payroll** needs a calculated run, a different person from the one who calculated it, and no pay-data changes since the calculation. Approval sets Processed, which locks the run.
   - **Complete Payroll** posts an approved run to the general ledger as one completed GL journal, dated on the pay date, and marks the run Completed with the poster and journal recorded on it. The person who calculated the payroll cannot complete it. The journal must balance to the cent and the period must be open, or nothing is posted.
+  - **Print Payslips** (approved or completed runs only) creates one PDF with an A4 payslip per employee: earnings, deductions, net pay and masked bank account, the PAYE working, any amount carried forward under the two-thirds rule, and employer contributions. The PDF is attached to the run and downloaded. Sample: [docs/images/payslip-pdf-sample.png](../docs/images/payslip-pdf-sample.png).
+  - **Statutory Schedules** (approved or completed runs only) creates a zip of CSV schedules: PAYE (P10 data), NSSF, SHIF, Housing Levy, NITA, HELB, bank transfers and a remittance summary, each with a total row. It is attached to the run and downloaded. These are working schedules, not yet the official upload layouts (pending item CRIT-02).
+  - Each payroll line keeps a copy of the employee's pay components and statutory numbers as they were at calculation, so payslips and schedules never change if pay data is edited later.
 - **Payroll Accounts (Kenya)** window: the ledger accounts the payroll posts to, one setup per accounting schema, plus an optional GL category. Each institution maps its own chart of accounts:
 
   | Account | Debit | Credit |
@@ -35,6 +38,7 @@ Payroll run verified on 9 November 2026 in the same environment, through the web
 - With pay data changed after calculation, approval was refused.
 - GardenUser's attempt to complete the approved run was refused; GardenAdmin completed it. GL journal 1003 was completed and posted for November 2026 in the Fertilizer organization: debits 198,000.00 salaries and 15,000.00 employer cost, credits 22,281.70 PAYE, 23,760.00 NSSF, 5,445.00 SHIF, 5,940.00 Housing Levy, 150.00 NITA, 13,000.00 pension, 6,000.00 staff loans, 7,655.00 SACCO and union, 128,768.30 net pay; 213,000.00 each side. A second completion was refused.
 - GardenWorld's own demo setup adds ledger entries after posting (its "Distribute Salaries" GL distribution and inter-organization balancing). These come from GardenWorld's configuration, not from ZenithCore.
+- On a December 2026 run calculated by GardenUser and approved by GardenAdmin, Print Payslips produced three payslips matching the worked payslips (E001 net 53,120.15; E004 net 6,000.00 with 845.00 carried forward; E006 net 69,648.15). Statutory Schedules totals agree with the payroll and the journal: PAYE 22,281.70, NSSF 23,760.00, SHIF 5,445.00, Housing Levy 5,940.00, NITA 150.00, bank 128,768.30. Both buttons were refused on a draft run.
 Screenshots: [approved](../docs/images/payroll-run-approved-idempiere13.png), [completed and posted](../docs/images/payroll-run-completed-idempiere13.png).
 
 Payslip preview verified on 9 November 2026 against a locally built iDempiere 13 (`release-13`) with PostgreSQL 16: for E001 (basic 62,000, house 12,000, commuter 4,000, other deductions 3,500) it returned PAYE 13,384.85 and net pay 53,120.15, matching the worked payslip. Screenshot: [docs/images/payslip-preview-idempiere13.png](../docs/images/payslip-preview-idempiere13.png).
@@ -64,7 +68,7 @@ GitHub Actions does not build this module yet, because it needs an iDempiere ins
    - `migration/postgresql/202611092000_ZC-0002_PayrollTables.sql` (generated: edit `tools/gen_dictionary.py`, then regenerate; never edit the SQL by hand)
 5. On a GardenWorld demo database only:
    - `migration/postgresql/demo-garden-world-access.sql` gives the GardenWorld Admin and GardenWorld User roles access.
-   - `testdata/garden-world-payroll-employees.sql` adds four sample employees in the Fertilizer organization, including a ghost record for the checks.
+   - `testdata/garden-world-payroll-employees.sql` adds four sample employees, with national ID numbers, in the Fertilizer organization, including a ghost record for the checks.
    - `testdata/garden-world-payroll-accounts.sql` maps GardenWorld's US payroll accounts as stand-ins for the Kenyan ones and opens the November 2026 GL Journal period.
 6. Log in as GardenUser to calculate and as GardenAdmin to approve and complete.
 
@@ -81,7 +85,9 @@ GitHub Actions does not build this module yet, because it needs an iDempiere ins
 ## Next
 
 - Reverse a completed payroll (reverse the GL journal and reopen the run) with its own approval.
-- Payslip and P10 reports; NSSF, SHIF, Housing Levy, NITA, HELB and bank files from the approved lines.
+- Official upload layouts for P10, NSSF, SHA, Housing Levy, NITA, HELB and the bank file, once the templates are on file (CRIT-02).
+- Email payslips to employees (password-protected PDF) and an employee self-service view.
+- Annual P9 certificates.
 - Establishment control (approved positions) and carry-forward of deductions to the next run.
 - Role setup for Payroll Officer, HR Head and Finance Head.
 - Ship the dictionary as a 2Pack instead of SQL; build the plug-in in CI.

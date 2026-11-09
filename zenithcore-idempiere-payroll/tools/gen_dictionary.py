@@ -45,7 +45,7 @@ STATUS_REF_ID = 1090000
 STATUS_LIST = [("DR", "Drafted"), ("CA", "Calculated"), ("AP", "Approved"), ("CO", "Completed")]
 EMPLOYEE_VAL_RULE_ID = 1090000
 
-PROC_CALC, PROC_APPROVE, PROC_COMPLETE = 1090001, 1090002, 1090003
+PROC_CALC, PROC_APPROVE, PROC_COMPLETE, PROC_PAYSLIPS, PROC_SCHEDULES = 1090001, 1090002, 1090003, 1090004, 1090005
 ACCOUNT_REF_VALUE = 362  # C_ElementValue (trx): posting accounts only
 ACCOUNT_VAL_RULE = 252   # accounts of the record's accounting schema
 PROCESSES = [
@@ -59,6 +59,13 @@ PROCESSES = [
      "Posts an approved payroll to the general ledger as a completed GL journal and closes the run. "
      "The person who calculated it cannot complete it.",
      "ke.co.pollux.zenithcore.payroll.idempiere.process.PayrollRunComplete"),
+    (PROC_PAYSLIPS, "ZC_PayrollPayslips", "Print Payslips",
+     "Creates a PDF with one payslip per employee for an approved or completed payroll and attaches it to the run.",
+     "ke.co.pollux.zenithcore.payroll.idempiere.process.PayrollRunPayslips"),
+    (PROC_SCHEDULES, "ZC_PayrollSchedules", "Statutory Schedules",
+     "Creates the PAYE (P10), NSSF, SHIF, Housing Levy, NITA, HELB and bank schedules for an approved or completed "
+     "payroll as CSV files in a zip, and attaches it to the run.",
+     "ke.co.pollux.zenithcore.payroll.idempiere.process.PayrollRunSchedules"),
 ]
 
 
@@ -101,6 +108,8 @@ TABLES = [
         amt("ZC_StaffLoan", "Staff loan"),
         amt("ZC_SACCO", "SACCO"),
         amt("ZC_UnionDues", "Union dues"),
+        dict(col="ZC_NationalIDNo", name="National ID number", ref=STRING, ddl="VARCHAR(20)", length=20,
+             help="Needed on the NSSF and HELB schedules."),
     ]),
     dict(id=1090001, table="ZC_PayrollRun", name="Payroll Run (Kenya)", window=1090001, cols=[
         dict(col="Name", name="Name", ref=STRING, ddl="VARCHAR(60) NOT NULL", length=60, mandatory=True, identifier=1),
@@ -132,6 +141,10 @@ TABLES = [
         dict(col="ZC_Complete", name="Complete Payroll", ref=BUTTON, ddl="CHAR(1)", length=1, process=PROC_COMPLETE,
              always=True),
         dict(col="GL_Journal_ID", name="GL journal", ref=TABLEDIR, ddl="NUMERIC(10)", readonly=True, fk="GL_Journal"),
+        dict(col="ZC_PrintPayslips", name="Print Payslips", ref=BUTTON, ddl="CHAR(1)", length=1, process=PROC_PAYSLIPS,
+             always=True),
+        dict(col="ZC_StatutorySchedules", name="Statutory Schedules", ref=BUTTON, ddl="CHAR(1)", length=1,
+             process=PROC_SCHEDULES, always=True),
     ]),
     dict(id=1090002, table="ZC_PayrollLine", name="Payroll Line (Kenya)", window=1090001, cols=[
         dict(col="ZC_PayrollRun_ID", name="Payroll run", ref=TABLEDIR, ddl="NUMERIC(10) NOT NULL", mandatory=True,
@@ -167,6 +180,22 @@ TABLES = [
         amt("ZC_NITA", "NITA levy", readonly=True),
         amt("ZC_EmployerCost", "Employer cost", readonly=True),
         dict(col="ZC_Trace", name="Calculation working", ref=TEXT, ddl="VARCHAR(4000)", length=4000, readonly=True),
+        # Calculation-time copy of the pay data, so payslips and schedules never change afterwards
+        amt("ZC_BasicSalary", "Basic salary", readonly=True),
+        amt("ZC_HouseAllowance", "House allowance", readonly=True),
+        amt("ZC_CommuterAllowance", "Commuter allowance", readonly=True),
+        amt("ZC_Overtime", "Overtime", readonly=True),
+        amt("ZC_OtherAllowances", "Other allowances", readonly=True),
+        amt("ZC_NonCashBenefits", "Non-cash benefits", readonly=True),
+        amt("ZC_PostRetirementMedical", "Post-retirement medical fund", readonly=True),
+        amt("ZC_MortgageInterest", "Mortgage interest", readonly=True),
+        dict(col="ZC_KRAPin", name="KRA PIN", ref=STRING, ddl="VARCHAR(11)", length=11, readonly=True),
+        dict(col="ZC_NSSFNo", name="NSSF number", ref=STRING, ddl="VARCHAR(20)", length=20, readonly=True),
+        dict(col="ZC_SHANo", name="SHA number", ref=STRING, ddl="VARCHAR(20)", length=20, readonly=True),
+        dict(col="ZC_NationalIDNo", name="National ID number", ref=STRING, ddl="VARCHAR(20)", length=20, readonly=True),
+        dict(col="ZC_Department", name="Department", ref=STRING, ddl="VARCHAR(60)", length=60, readonly=True),
+        dict(col="ZC_BankName", name="Bank", ref=STRING, ddl="VARCHAR(60)", length=60, readonly=True),
+        dict(col="ZC_BankAccountNo", name="Bank account", ref=STRING, ddl="VARCHAR(40)", length=40, readonly=True),
     ]),
     dict(id=1090003, table="ZC_PayrollAcct", name="Payroll Accounts (Kenya)", window=1090002, cols=[
         dict(col="C_AcctSchema_ID", name="Accounting schema", ref=TABLEDIR, ddl="NUMERIC(10) NOT NULL",

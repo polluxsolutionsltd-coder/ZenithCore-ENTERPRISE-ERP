@@ -26,3 +26,8 @@ FROM (VALUES
 WHERE NOT EXISTS (SELECT 1 FROM ZC_EmployeePay x WHERE x.ZC_EmployeePay_ID=e.id);
 
 UPDATE AD_Sequence SET CurrentNext=GREATEST(CurrentNext,1000004) WHERE Name='ZC_EmployeePay' AND IsTableID='Y';
+
+-- Sample national ID numbers (needed on the NSSF and HELB schedules)
+UPDATE ZC_EmployeePay e SET ZC_NationalIDNo=v.idno, Updated=now()
+FROM (VALUES (1000000,'27114455'),(1000001,'30225566'),(1000002,'24336677'),(1000003,'29447788')) v(id,idno)
+WHERE e.ZC_EmployeePay_ID=v.id AND e.ZC_NationalIDNo IS NULL;
