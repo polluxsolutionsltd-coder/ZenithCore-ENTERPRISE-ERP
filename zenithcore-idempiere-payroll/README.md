@@ -4,22 +4,24 @@ OSGi plug-in that brings the `zenithcore-payroll-ke` engine into iDempiere 13.
 
 ## What it does today
 
+- **Establishment (Kenya)** window: the approved positions of each organization, with code, title, department, job grade, approved headcount, salary ceiling (basic), validity dates and a note such as the board minute. Each employee's pay data names the position they hold. Screenshot: [docs/images/establishment-window.png](../docs/images/establishment-window.png).
 - **Employee Pay Data (Kenya)** window: KRA PIN, NSSF and SHA numbers, bank, start and end dates, a Suspended flag, and every pay component. Employees are business partners flagged as employees. Changes are recorded in iDempiere's change log.
 - **Payroll Run (Kenya)** window with a read-only Lines tab:
-  - **Calculate Payroll** runs the pre-payroll checks (shared bank accounts, shared or invalid KRA PINs, missing NSSF/SHA numbers, missing bank details). Any blocking check stops the run and the results are saved on it. Otherwise it calculates every active, unsuspended employee of the run's organization whose start and end dates cover the pay date, and replaces the lines; each line keeps the full calculation working.
+  - **Calculate Payroll** runs the pre-payroll checks (shared bank accounts, shared or invalid KRA PINs, missing NSSF/SHA numbers, missing bank details) and the establishment checks: every employee paid must hold an approved position that is in force on the pay date and belongs to the same organization, no position may be paid beyond its approved headcount, and no basic salary may exceed its position's ceiling. Any blocking check stops the run and the results are saved on it. Otherwise it calculates every active, unsuspended employee of the run's organization whose start and end dates cover the pay date, and replaces the lines; each line keeps the full calculation working.
   - **Approve Payroll** needs a calculated run, a different person from the one who calculated it, and no pay-data changes since the calculation. Approval sets Processed, which locks the run.
   - **Complete Payroll** posts an approved run to the general ledger as one completed GL journal, dated on the pay date, and marks the run Completed with the poster and journal recorded on it. The person who calculated the payroll cannot complete it. The journal must balance to the cent and the period must be open, or nothing is posted.
   - **Print Payslips** (approved or completed runs only) creates one PDF with an A4 payslip per employee: earnings, deductions, net pay and masked bank account, the PAYE working, any amount carried forward under the two-thirds rule, and employer contributions. The PDF is attached to the run and downloaded. Samples: [payslip](../docs/images/payslip-pdf-sample.png), [payslip with arrears](../docs/images/payslip-arrears-sample.png).
   - **Statutory Schedules** (approved or completed runs only) creates a zip of CSV schedules: PAYE (P10 data), NSSF, SHIF, Housing Levy, NITA, HELB, bank transfers and a remittance summary, each with a total row. It is attached to the run and downloaded. These are working schedules, not yet the official upload layouts (pending item CRIT-02).
   - **Arrears.** HELB, staff loan, SACCO and union dues that the two-thirds rule stopped are carried to the employee's next payroll, added to that month's amount and shown in the working ("Brought forward from December 2026: SACCO 845.00"), on the line and on the payslip. Pension and insurance shortfalls are not carried; the working tells payroll to refer them to HR. To keep arrears moving forward exactly once, payrolls of an organization are calculated in date order: an earlier payroll that is not yet approved, or a later one already approved, stops the calculation.
+  - **Request Reversal** and **Reverse Payroll** undo a completed payroll in two steps by two people. The first records the reason; the second reverses the GL journal (iDempiere reverse-correct, same date) and marks the payroll Reversed. A reversed payroll gives no payslips, schedules or arrears, and a corrected payroll can then be calculated for the same pay date. A payroll cannot be reversed once a later payroll is approved; reverse the later one first.
   - Each payroll line keeps a copy of the employee's pay components and statutory numbers as they were at calculation, so payslips and schedules never change if pay data is edited later.
 - **Set Up Payroll Roles** process (menu: ZenithCore), run once per institution by its administrator. It creates three manual roles, so no one person can run a payroll end to end:
 
   | Role | Can | Cannot |
   | --- | --- | --- |
-  | Payroll Officer | Maintain employee pay data and business partners; create and calculate payroll runs; payslips and schedules | Approve or post |
-  | HR Head | Read pay data; approve payroll runs; payslips | Change pay data, calculate, post |
-  | Finance Head | Maintain payroll accounts; complete (post) approved runs; read GL journals; payslips and schedules | Change pay data, calculate, approve |
+  | Payroll Officer | Maintain employee pay data and business partners; create and calculate payroll runs; read the establishment; payslips and schedules | Change the establishment, approve, post or reverse |
+  | HR Head | Maintain the establishment; read pay data; approve payroll runs; request reversals; payslips | Change pay data, calculate, post, reverse |
+  | Finance Head | Maintain payroll accounts; complete (post) approved runs; reverse runs on request; read GL journals and the establishment; payslips and schedules | Change pay data, calculate, approve |
 
   Buttons a role may not use are not shown. Running it again restores this access. Assign the roles in the User window, one per person. iDempiere's client administrator role keeps access to everything, as usual; the processes still refuse a user who calculated a payroll from approving or completing it.
 - **Payroll Accounts (Kenya)** window: the ledger accounts the payroll posts to, one setup per accounting schema, plus an optional GL category. Each institution maps its own chart of accounts:
@@ -50,6 +52,7 @@ Payroll run verified on 9 November 2026 in the same environment, through the web
 - GardenWorld's own demo setup adds ledger entries after posting (its "Distribute Salaries" GL distribution and inter-organization balancing). These come from GardenWorld's configuration, not from ZenithCore.
 - On a December 2026 run calculated by GardenUser and approved by GardenAdmin, Print Payslips produced three payslips matching the worked payslips (E001 net 53,120.15; E004 net 6,000.00 with 845.00 carried forward; E006 net 69,648.15). Statutory Schedules totals agree with the payroll and the journal: PAYE 22,281.70, NSSF 23,760.00, SHIF 5,445.00, Housing Levy 5,940.00, NITA 150.00, bank 128,768.30. Both buttons were refused on a draft run.
 - With the payroll roles, on 9 November 2026: PayrollOfficer calculated January 2027 (no Approve or Complete buttons shown); HRHead had no Calculate button and approved it; FinanceHead had no Approve button and completed it (GL journal 1004). E004's SACCO arrears of 845.00 from December were brought forward, 4,155.00 was deducted again and 1,690.00 carried to the next payroll; the payslip shows both. A back-dated payroll was refused because a later one was approved. Running Set Up Payroll Roles a second time changed nothing.
+- Establishment and reversal, 9 November 2026: with E006 lacking a position, PayrollOfficer's calculation was blocked ("No approved position: E006 Tom Wafula"); with E006 put in the two-person Workshop Technician position, it was blocked for over-establishment (3 paid, 2 approved) and for the salary ceiling (82,000.00 above 70,000.00). GardenAdmin requested a reversal of January 2027 and was refused when reversing it; FinanceHead reversed it (GL journal 1004 reversed by 1005, status Reversed). A corrected January payroll then brought E004's SACCO arrears forward from December (the reversed run was skipped), was approved by HRHead and posted by FinanceHead (GL journal 1006).
 Screenshots: [approved](../docs/images/payroll-run-approved-idempiere13.png), [completed and posted](../docs/images/payroll-run-completed-idempiere13.png).
 
 Payslip preview verified on 9 November 2026 against a locally built iDempiere 13 (`release-13`) with PostgreSQL 16: for E001 (basic 62,000, house 12,000, commuter 4,000, other deductions 3,500) it returned PAYE 13,384.85 and net pay 53,120.15, matching the worked payslip. Screenshot: [docs/images/payslip-preview-idempiere13.png](../docs/images/payslip-preview-idempiere13.png).
@@ -81,6 +84,7 @@ GitHub Actions does not build this module yet, because it needs an iDempiere ins
    - `migration/postgresql/demo-garden-world-access.sql` gives the GardenWorld Admin and GardenWorld User roles access.
    - `testdata/garden-world-payroll-employees.sql` adds four sample employees, with national ID numbers, in the Fertilizer organization, including a ghost record for the checks.
    - `testdata/garden-world-payroll-accounts.sql` maps GardenWorld's US payroll accounts as stand-ins for the Kenyan ones and opens the November 2026 to January 2027 GL Journal periods.
+   - `testdata/garden-world-payroll-establishment.sql` adds two approved positions in Fertilizer and assigns E001, E004 and E006 to them.
 6. As GardenAdmin, run ZenithCore → Set Up Payroll Roles. Then, on GardenWorld only, `testdata/garden-world-payroll-users.sql` adds the users PayrollOfficer, HRHead and FinanceHead (password = user name), one per role.
 7. Log in as PayrollOfficer to calculate, HRHead to approve and FinanceHead to complete, choosing the Fertilizer organization.
 
@@ -100,5 +104,6 @@ GitHub Actions does not build this module yet, because it needs an iDempiere ins
 - Official upload layouts for P10, NSSF, SHA, Housing Levy, NITA, HELB and the bank file, once the templates are on file (CRIT-02).
 - Email payslips to employees (password-protected PDF) and an employee self-service view.
 - Annual P9 certificates.
-- Establishment control (approved positions and budgeted headcount).
+- Reopen an approved but not yet posted payroll (with its own approval), for corrections before posting.
+- Show the position on payslips and schedules; establishment report (approved, filled, vacant, cost).
 - Ship the dictionary as a 2Pack instead of SQL; build the plug-in in CI.

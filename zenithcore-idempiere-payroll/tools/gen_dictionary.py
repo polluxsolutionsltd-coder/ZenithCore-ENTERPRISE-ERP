@@ -39,14 +39,15 @@ AD_USER_REF = 110
 # Existing iDempiere elements reused by name (ColumnName -> AD_Element_ID looked up at run time)
 CORE_ELEMENTS = {"AD_Client_ID", "AD_Org_ID", "IsActive", "Created", "CreatedBy", "Updated", "UpdatedBy",
                  "C_BPartner_ID", "Name", "Description", "Processed", "C_AcctSchema_ID", "GL_Journal_ID",
-                 "GL_Category_ID"}
+                 "GL_Category_ID", "Value", "ValidFrom", "ValidTo"}
 
 STATUS_REF_ID = 1090000
-STATUS_LIST = [("DR", "Drafted"), ("CA", "Calculated"), ("AP", "Approved"), ("CO", "Completed")]
+STATUS_LIST = [("DR", "Drafted"), ("CA", "Calculated"), ("AP", "Approved"), ("CO", "Completed"), ("RV", "Reversed")]
 EMPLOYEE_VAL_RULE_ID = 1090000
 
 PROC_CALC, PROC_APPROVE, PROC_COMPLETE, PROC_PAYSLIPS, PROC_SCHEDULES = 1090001, 1090002, 1090003, 1090004, 1090005
 PROC_ROLES = 1090006
+PROC_REQ_REVERSAL, PROC_REVERSE = 1090007, 1090008
 ACCOUNT_REF_VALUE = 362  # C_ElementValue (trx): posting accounts only
 ACCOUNT_VAL_RULE = 252   # accounts of the record's accounting schema
 PROCESSES = [
@@ -71,6 +72,18 @@ PROCESSES = [
      "Creates or refreshes the Payroll Officer, HR Head and Finance Head roles in this client, so that no one person "
      "can calculate, approve and post a payroll.",
      "ke.co.pollux.zenithcore.payroll.idempiere.process.PayrollRoleSetup"),
+    (PROC_REQ_REVERSAL, "ZC_PayrollRequestReversal", "Request Reversal",
+     "Asks for a completed payroll to be reversed, giving the reason. A different person must then reverse it.",
+     "ke.co.pollux.zenithcore.payroll.idempiere.process.PayrollRunRequestReversal"),
+    (PROC_REVERSE, "ZC_PayrollReverse", "Reverse Payroll",
+     "Reverses the GL journal of a completed payroll whose reversal was requested by someone else, and marks the "
+     "payroll Reversed. A corrected payroll can then be calculated for the same pay date.",
+     "ke.co.pollux.zenithcore.payroll.idempiere.process.PayrollRunReverse"),
+]
+
+# (id, process, column name, name, reference, length, mandatory, seq). The column's element must exist.
+PROCESS_PARAMS = [
+    (1090020, PROC_REQ_REVERSAL, "ZC_ReversalReason", "Reason for reversal", TEXT, 2000, True, 10),
 ]
 
 
@@ -115,6 +128,8 @@ TABLES = [
         amt("ZC_UnionDues", "Union dues"),
         dict(col="ZC_NationalIDNo", name="National ID number", ref=STRING, ddl="VARCHAR(20)", length=20,
              help="Needed on the NSSF and HELB schedules."),
+        dict(col="ZC_Position_ID", name="Position", ref=TABLEDIR, ddl="NUMERIC(10)", fk="ZC_Position",
+             help="Approved position the employee holds. Payroll is blocked for anyone without one."),
     ]),
     dict(id=1090001, table="ZC_PayrollRun", name="Payroll Run (Kenya)", window=1090001, cols=[
         dict(col="Name", name="Name", ref=STRING, ddl="VARCHAR(60) NOT NULL", length=60, mandatory=True, identifier=1),
@@ -150,6 +165,16 @@ TABLES = [
              always=True),
         dict(col="ZC_StatutorySchedules", name="Statutory Schedules", ref=BUTTON, ddl="CHAR(1)", length=1,
              process=PROC_SCHEDULES, always=True),
+        dict(col="ZC_ReversalReason", name="Reason for reversal", ref=TEXT, ddl="VARCHAR(2000)", length=2000,
+             readonly=True),
+        dict(col="ZC_ReversalRequestedUser_ID", name="Reversal requested by", ref=TABLE, refvalue=AD_USER_REF,
+             ddl="NUMERIC(10)", readonly=True, fk="AD_User"),
+        dict(col="ZC_ReversedUser_ID", name="Reversed by", ref=TABLE, refvalue=AD_USER_REF, ddl="NUMERIC(10)",
+             readonly=True, fk="AD_User"),
+        dict(col="ZC_RequestReversal", name="Request Reversal", ref=BUTTON, ddl="CHAR(1)", length=1,
+             process=PROC_REQ_REVERSAL, always=True),
+        dict(col="ZC_Reverse", name="Reverse Payroll", ref=BUTTON, ddl="CHAR(1)", length=1, process=PROC_REVERSE,
+             always=True),
     ]),
     dict(id=1090002, table="ZC_PayrollLine", name="Payroll Line (Kenya)", window=1090001, cols=[
         dict(col="ZC_PayrollRun_ID", name="Payroll run", ref=TABLEDIR, ddl="NUMERIC(10) NOT NULL", mandatory=True,
@@ -229,6 +254,23 @@ TABLES = [
         dict(col="GL_Category_ID", name="GL category", ref=TABLEDIR, ddl="NUMERIC(10)", fk="GL_Category",
              help="Category of the payroll journal, for example Payroll. Empty means the default category."),
     ]),
+    dict(id=1090004, table="ZC_Position", name="Establishment Position (Kenya)", window=1090003, cols=[
+        dict(col="Value", name="Position code", ref=STRING, ddl="VARCHAR(40) NOT NULL", length=40, mandatory=True,
+             identifier=1),
+        dict(col="Name", name="Position title", ref=STRING, ddl="VARCHAR(60) NOT NULL", length=60, mandatory=True,
+             identifier=2),
+        dict(col="ZC_Department", name="Department", ref=STRING, ddl="VARCHAR(60)", length=60),
+        dict(col="ZC_JobGrade", name="Job grade", ref=STRING, ddl="VARCHAR(20)", length=20),
+        dict(col="ZC_ApprovedHeadcount", name="Approved headcount", ref=INTEGER, ddl="NUMERIC(10) DEFAULT 1 NOT NULL",
+             default="1", mandatory=True,
+             help="Number of people who may be paid in this position. Payroll is blocked if more are paid."),
+        amt("ZC_MaxBasicSalary", "Salary ceiling (basic)",
+            help="Highest basic salary approved for this position. Zero means no ceiling."),
+        dict(col="ValidFrom", name="Valid from", ref=DATE, ddl="TIMESTAMP NOT NULL", mandatory=True),
+        dict(col="ValidTo", name="Valid to", ref=DATE, ddl="TIMESTAMP"),
+        dict(col="Description", name="Description", ref=TEXT, ddl="VARCHAR(255)", length=255,
+             help="For example the board minute that approved the position."),
+    ]),
 ]
 
 WINDOWS = [
@@ -241,12 +283,16 @@ WINDOWS = [
     dict(id=1090002, name="Payroll Accounts (Kenya)",
          desc="General ledger accounts the payroll posts to, one setup per accounting schema", wtype="M",
          tabs=[dict(id=1090003, table=1090003, name="Payroll Accounts", level=0, seq=10)]),
+    dict(id=1090003, name="Establishment (Kenya)",
+         desc="Approved positions: headcount and salary ceiling. Nobody is paid without an approved position.",
+         wtype="M", tabs=[dict(id=1090004, table=1090004, name="Position", level=0, seq=10)]),
 ]
 
 MENUS = [  # (id, name, window, seq) under the ZenithCore folder 1090001
     (1090002, "Employee Pay Data (Kenya)", 1090000, 20),
     (1090003, "Payroll Run (Kenya)", 1090001, 30),
     (1090004, "Payroll Accounts (Kenya)", 1090002, 40),
+    (1090006, "Establishment (Kenya)", 1090003, 15),
 ]
 
 PROCESS_MENUS = [  # (id, name, process, seq) under the ZenithCore folder 1090001
@@ -325,6 +371,7 @@ def main():
         elements[cn] = expr
         return expr
 
+    fks = []  # foreign keys are added once every table exists
     for ti, t in enumerate(TABLES):
         tid, tn = t["id"], t["table"]
         w(f"-- {tn}")
@@ -340,8 +387,8 @@ def main():
         for c in cols:
             if c.get("fk"):
                 cname = f"{tn[:12]}_{c['col'][:14]}_fk"
-                w(f"DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname=lower({q(cname)})) THEN "
-                  f"ALTER TABLE {tn} ADD CONSTRAINT {cname} FOREIGN KEY ({c['col']}) REFERENCES {c['fk']} ({c['fk']}_ID) DEFERRABLE INITIALLY DEFERRED; END IF; END $$;")
+                fks.append(f"DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname=lower({q(cname)})) THEN "
+                           f"ALTER TABLE {tn} ADD CONSTRAINT {cname} FOREIGN KEY ({c['col']}) REFERENCES {c['fk']} ({c['fk']}_ID) DEFERRABLE INITIALLY DEFERRED; END IF; END $$;")
         w(f"INSERT INTO AD_Table (AD_Table_ID,AD_Client_ID,AD_Org_ID,IsActive,Created,CreatedBy,Updated,UpdatedBy,Name,TableName,IsView,AccessLevel,EntityType,AD_Window_ID,IsSecurityEnabled,IsDeleteable,IsHighVolume,IsChangeLog,ReplicationType,IsPartition,AD_Table_UU) "
           f"SELECT {tid},0,0,'Y',now(),100,now(),100,{q(t['name'])},{q(tn)},'N','3',{q(ENTITY)},{t['window']},'N','Y','N','Y','L','N',{q(uu('table', tn))} WHERE NOT EXISTS (SELECT 1 FROM AD_Table WHERE AD_Table_ID={tid});")
         w(f"INSERT INTO AD_Sequence (AD_Sequence_ID,AD_Client_ID,AD_Org_ID,IsActive,Created,CreatedBy,Updated,UpdatedBy,Name,Description,IsTableID,IsAutoSequence,IncrementNo,StartNo,CurrentNext,CurrentNextSys,StartNewMonth,IsOrgLevelSequence,AD_Sequence_UU) "
@@ -361,6 +408,11 @@ def main():
               f"{q('Y' if c.get('key') else 'N')},{q('Y' if c.get('parent') else 'N')},{q('Y' if c.get('mandatory') else 'N')},{q(updateable)},{q('Y' if c.get('identifier') else 'N')},{c.get('identifier', 0)},'N','N','N',{el},{q('Y' if c.get('always') else 'N')},'N','Y',{q('N' if c['ref'] == BUTTON else 'Y')},'N','N',{q('D' if c.get('fk') else 'N')},{q(uu('column', tn + '.' + c['col']))} "
               f"WHERE NOT EXISTS (SELECT 1 FROM AD_Column WHERE AD_Column_ID={cid});")
         w("")
+
+    w("-- foreign keys")
+    for f in fks:
+        w(f)
+    w("")
 
     # tabs and fields
     tab_index = 0
@@ -397,6 +449,10 @@ def main():
           f"SELECT {mid},0,0,'Y',now(),100,now(),100,{q(name)},'P',{pid},'N','N','N',{q(ENTITY)},{q(uu('menu', name))} WHERE NOT EXISTS (SELECT 1 FROM AD_Menu WHERE AD_Menu_ID={mid});")
         w(f"INSERT INTO AD_TreeNodeMM (AD_Tree_ID,Node_ID,AD_Client_ID,AD_Org_ID,IsActive,Created,CreatedBy,Updated,UpdatedBy,Parent_ID,SeqNo,AD_TreeNodeMM_UU) "
           f"SELECT 10,{mid},0,0,'Y',now(),100,now(),100,1090001,{seqno},{q(uu('treenode', str(mid)))} WHERE NOT EXISTS (SELECT 1 FROM AD_TreeNodeMM WHERE AD_Tree_ID=10 AND Node_ID={mid});")
+    for ppid, pid, cn, name, ref, length, mand, seq in PROCESS_PARAMS:
+        w(f"INSERT INTO AD_Process_Para (AD_Process_Para_ID,AD_Client_ID,AD_Org_ID,IsActive,Created,CreatedBy,Updated,UpdatedBy,Name,AD_Process_ID,SeqNo,AD_Reference_ID,IsRange,FieldLength,IsMandatory,ColumnName,IsCentrallyMaintained,EntityType,IsEncrypted,AD_Element_ID,AD_Process_Para_UU) "
+          f"SELECT {ppid},0,0,'Y',now(),100,now(),100,{q(name)},{pid},{seq},{ref},'N',{length},{q('Y' if mand else 'N')},{q(cn)},'N',{q(ENTITY)},'N',"
+          f"(SELECT AD_Element_ID FROM AD_Element WHERE ColumnName={q(cn)}),{q(uu('para', str(ppid)))} WHERE NOT EXISTS (SELECT 1 FROM AD_Process_Para WHERE AD_Process_Para_ID={ppid});")
     print("\n".join(out))
 
 

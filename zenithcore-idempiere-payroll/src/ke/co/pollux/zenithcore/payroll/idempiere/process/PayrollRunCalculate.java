@@ -20,6 +20,7 @@ import org.compiere.util.DB;
 
 import ke.co.pollux.zenithcore.payroll.ke.DeductionArrears;
 import ke.co.pollux.zenithcore.payroll.ke.EmployeePayInput;
+import ke.co.pollux.zenithcore.payroll.ke.EstablishmentChecks;
 import ke.co.pollux.zenithcore.payroll.ke.KenyaPayrollEngine;
 import ke.co.pollux.zenithcore.payroll.ke.Money;
 import ke.co.pollux.zenithcore.payroll.ke.PayResult;
@@ -36,6 +37,7 @@ public class PayrollRunCalculate extends SvrProcess {
     static final String RUN = "ZC_PayrollRun";
     static final String LINE = "ZC_PayrollLine";
     static final String EMP = "ZC_EmployeePay";
+    static final String POSITION = "ZC_Position";
 
     /** Pay data copied onto each line at calculation, so payslips and schedules show what was calculated. */
     static final String[] SNAPSHOT = {"ZC_BasicSalary", "ZC_HouseAllowance", "ZC_CommuterAllowance", "ZC_Overtime",
@@ -81,7 +83,8 @@ public class PayrollRunCalculate extends SvrProcess {
             records.add(new PrePayrollChecks.EmployeeRecord(bp.getValue(), bp.getName(), e.get_ValueAsString("ZC_KRAPin"),
                     e.get_ValueAsString("ZC_NSSFNo"), e.get_ValueAsString("ZC_SHANo"), e.get_ValueAsString("ZC_BankAccountNo")));
         }
-        List<PrePayrollChecks.CheckResult> checks = PrePayrollChecks.run(records);
+        List<PrePayrollChecks.CheckResult> checks = new ArrayList<>(PrePayrollChecks.run(records));
+        checks.addAll(establishmentChecks(employees, payDate));
         String checkText = checks.stream()
                 .map(c -> c.severity() + "  " + c.check() + ": " + c.detail())
                 .collect(Collectors.joining("\n"));
@@ -235,6 +238,29 @@ public class PayrollRunCalculate extends SvrProcess {
             throw new AdempiereUserError("A later payroll (" + later + ") is already approved. "
                     + "A payroll cannot be calculated for an earlier date.");
         }
+    }
+
+    /** Establishment control: approved position, in force, same organization, headcount and salary ceiling. */
+    private List<PrePayrollChecks.CheckResult> establishmentChecks(List<PO> employees, LocalDate payDate) {
+        List<EstablishmentChecks.Position> positions = new ArrayList<>();
+        for (PO p : new Query(getCtx(), POSITION, null, get_TrxName()).setClient_ID().list()) {
+            Timestamp from = (Timestamp) p.get_Value("ValidFrom");
+            Timestamp to = (Timestamp) p.get_Value("ValidTo");
+            positions.add(new EstablishmentChecks.Position(String.valueOf(p.get_ID()),
+                    p.get_ValueAsString("Value") + " " + p.get_ValueAsString("Name"), p.getAD_Org_ID(),
+                    p.get_ValueAsInt("ZC_ApprovedHeadcount"), (BigDecimal) p.get_Value("ZC_MaxBasicSalary"),
+                    from == null ? null : from.toLocalDateTime().toLocalDate(),
+                    to == null ? null : to.toLocalDateTime().toLocalDate(), p.isActive()));
+        }
+        List<EstablishmentChecks.Assignment> assigned = new ArrayList<>();
+        for (PO e : employees) {
+            MBPartner bp = MBPartner.get(getCtx(), e.get_ValueAsInt("C_BPartner_ID"));
+            int pos = e.get_ValueAsInt("ZC_Position_ID");
+            BigDecimal basic = (BigDecimal) e.get_Value("ZC_BasicSalary");
+            assigned.add(new EstablishmentChecks.Assignment(bp.getValue(), bp.getName(), e.getAD_Org_ID(),
+                    pos > 0 ? String.valueOf(pos) : null, basic == null ? Money.ZERO : basic));
+        }
+        return EstablishmentChecks.run(assigned, positions, payDate);
     }
 
     static EmployeePayInput input(PO e) {
