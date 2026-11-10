@@ -23,7 +23,7 @@ class SetupDataTest {
 
     private static final Path KENYA = Path.of("..", "zenithcore-idempiere-controls", "setup", "kenya");
 
-    /** The 55 default accounts iDempiere's Initial Tenant Setup looks for (AccountingUS.csv, iDempiere 13). */
+    /** The 54 default accounts iDempiere's Initial Tenant Setup looks for (AccountingUS.csv, iDempiere 13). */
     static final Set<String> IDEMPIERE_DEFAULTS = Set.of("B_ASSET_ACCT", "B_INTERESTEXP_ACCT", "B_INTERESTREV_ACCT",
             "B_INTRANSIT_ACCT", "B_PAYMENTSELECT_ACCT", "B_UNALLOCATEDCASH_ACCT", "CB_ASSET_ACCT", "CB_CASHTRANSFER_ACCT",
             "CB_DIFFERENCES_ACCT", "CB_EXPENSE_ACCT", "CB_RECEIPT_ACCT", "CH_EXPENSE_ACCT", "COMMITMENTOFFSETSALES_ACCT",
