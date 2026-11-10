@@ -13,22 +13,22 @@ Legend: **iDempiere** = standard feature, needs configuration and testing only. 
 | Pre-qualification gate on the supplier register; blacklist flag | ZenithCore: pre-qualification fields, window, gate on LPO, supplier invoice, supplier payment | Built, verified (supplier invoice) |
 | Three-way match of LPO, goods received note and invoice | ZenithCore: check on supplier invoice completion, price tolerance per client | Built, verified |
 | Audit-query register, tracked to closure with evidence | ZenithCore: register window, Close Audit Query with evidence and second person | Built, verified |
+| Budgets by cost centre, budget check at requisition, LPO and payment voucher | ZenithCore: Budgets window with approval, check on completion, Budget Status Report | Built, verified (LPO, invoice) |
 
 ## Remaining Phase 1 work, in build order
 
 | # | Item | How | Notes |
 | --- | --- | --- | --- |
-| 1 | Budget check at requisition, LPO and payment voucher | ZenithCore on iDempiere GL budgets | Budget by cost centre and account; block or warn by client setting |
-| 2 | VAT and withholding tax (income tax WHT, WHVAT) on supplier invoices and payments; WHT certificates | ZenithCore | Rates as dated data; iTax file layouts wait on templates (as CRIT-02) |
-| 3 | Stores: named custodians, store-level access, reason-coded adjustments, write-off approval | ZenithCore on iDempiere inventory | Custodian per warehouse and locator; write-offs use the approval rules |
-| 4 | Blind counts on a tablet browser | ZenithCore count form | Counter never sees book quantity; variance report by item, store, cause |
-| 5 | Goods received with inspection and rejection; quarantine locations | iDempiere receipts + ZenithCore inspection status | |
-| 6 | M-Pesa and bank statement import and matching | iDempiere bank statement loader + ZenithCore M-Pesa format | Bank formats per bank (as CRIT-02) |
-| 7 | Opening-balance clean-up workbench | ZenithCore | Import trial balance and sub-ledgers, reconcile to audited figures, post once signed |
-| 8 | Board pack generator, business-unit accounts | ZenithCore report on iDempiere financial reports | Business units as a reporting dimension (User List 1 or Activity) |
-| 9 | Fixed asset tags and printed verification sheets | iDempiere assets + ZenithCore labels and sheets | |
-| 10 | Kenyan chart of accounts and setup template (2Pack) | ZenithCore data | Loaded per institution |
-| 11 | Expiry, slow-moving and wastage reports; batch, serial, expiry, QR labels | iDempiere + ZenithCore reports | |
+| 1 | VAT and withholding tax (income tax WHT, WHVAT) on supplier invoices and payments; WHT certificates | ZenithCore | Rates as dated data; iTax file layouts wait on templates (as CRIT-02) |
+| 2 | Stores: named custodians, store-level access, reason-coded adjustments, write-off approval | ZenithCore on iDempiere inventory | Custodian per warehouse and locator; write-offs use the approval rules |
+| 3 | Blind counts on a tablet browser | ZenithCore count form | Counter never sees book quantity; variance report by item, store, cause |
+| 4 | Goods received with inspection and rejection; quarantine locations | iDempiere receipts + ZenithCore inspection status | |
+| 5 | M-Pesa and bank statement import and matching | iDempiere bank statement loader + ZenithCore M-Pesa format | Bank formats per bank (as CRIT-02) |
+| 6 | Opening-balance clean-up workbench | ZenithCore | Import trial balance and sub-ledgers, reconcile to audited figures, post once signed |
+| 7 | Board pack generator, business-unit accounts | ZenithCore report on iDempiere financial reports | Business units as a reporting dimension (User List 1 or Activity) |
+| 8 | Fixed asset tags and printed verification sheets | iDempiere assets + ZenithCore labels and sheets | |
+| 9 | Kenyan chart of accounts and setup template (2Pack) | ZenithCore data | Loaded per institution |
+| 10 | Expiry, slow-moving and wastage reports; batch, serial, expiry, QR labels | iDempiere + ZenithCore reports | |
 
 ## Standard iDempiere, configuration only
 
