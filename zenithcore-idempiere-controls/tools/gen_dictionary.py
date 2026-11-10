@@ -101,6 +101,11 @@ SYSCONFIG = [  # (id, name, system default, description); each client sets its o
      "Y adds withholding income tax and withholding VAT deduction lines to supplier invoices when they are prepared"),
     (1091506, "ZC_WHVAT_AGENT", "N", "Y if the institution is an appointed withholding VAT agent"),
     (1091507, "ZC_WHVAT_TYPE", "WHVAT", "Code of the withholding rate type that holds the withholding VAT rate"),
+    (1091508, "ZC_STORES_CONTROL", "N",
+     "Y: only a store's custodian or deputy receives, issues, moves and adjusts its stock; adjustments need reasons; "
+     "write-offs need independent approval"),
+    (1091509, "ZC_WRITEOFF_APPROVAL_FROM", "0",
+     "Write-offs at or above this value need approval by someone other than the preparer and the custodians; 0 = all"),
 ]
 
 # --- new tables ------------------------------------------------------------------------------------
@@ -193,6 +198,13 @@ TABLES = [
         dict(col="Description", name="Legal basis", ref=STRING, ddl="VARCHAR(255)", length=255,
              help="Act, section and source, for example Income Tax Act s.35; KRA guide Nov 2023."),
     ]),
+    dict(id=1091506, table="ZC_AdjustmentReason", name="Stock Adjustment Reason", window=1091505, cols=[
+        dict(col="Value", name="Code", ref=STRING, ddl="VARCHAR(20) NOT NULL", length=20, mandatory=True, identifier=1),
+        dict(col="Name", name="Reason", ref=STRING, ddl="VARCHAR(120) NOT NULL", length=120, mandatory=True, identifier=2),
+        dict(col="ZC_IsWriteOff", name="Write-off", ref=YESNO, ddl="CHAR(1) DEFAULT 'Y' NOT NULL", default="Y",
+             mandatory=True, help="Stock removed for this reason is a write-off and needs independent approval."),
+        dict(col="Description", name="Description", ref=STRING, ddl="VARCHAR(255)", length=255),
+    ]),
 ]
 
 # --- columns added to iDempiere tables ----------------------------------------------------------------
@@ -225,6 +237,12 @@ EXTENSIONS = [  # (table, column spec)
                            default="N", readonly=True, help="Line added by ZenithCore for tax withheld.")),
     ("C_InvoiceLine", dict(col="ZC_WHTBase", name="Withholding base", ref=AMOUNT, ddl="NUMERIC", readonly=True,
                            help="Amount the tax withheld on this deduction line was calculated on.")),
+    ("M_Warehouse", dict(col="ZC_CustodianUser_ID", name="Custodian", ref=TABLE, refvalue=AD_USER_REF, ddl="NUMERIC(10)",
+                         help="Store keeper accountable for this store's stock.")),
+    ("M_Warehouse", dict(col="ZC_DeputyCustodianUser_ID", name="Deputy custodian", ref=TABLE, refvalue=AD_USER_REF,
+                         ddl="NUMERIC(10)")),
+    ("M_InventoryLine", dict(col="ZC_AdjustmentReason_ID", name="Reason", ref=TABLEDIR, ddl="NUMERIC(10)",
+                             help="Why stock is changed on this line. Needed for every difference.")),
 ]
 EXTENSION_FIELDS = [  # (field id, tab id, table, column, seq): editable fields on iDempiere tabs
     (1091954, 641, "M_Requisition", "C_Activity_ID", 75),
@@ -233,6 +251,10 @@ EXTENSION_FIELDS = [  # (field id, tab id, table, column, seq): editable fields 
     (1091957, 291, "C_InvoiceLine", "ZC_WHTType_ID", 355),
     (1091958, 291, "C_InvoiceLine", "ZC_IsWHTLine", 356),
     (1091959, 291, "C_InvoiceLine", "ZC_WHTBase", 357),
+    (1091960, 177, "M_Warehouse", "ZC_CustodianUser_ID", 205),
+    (1091961, 177, "M_Warehouse", "ZC_DeputyCustodianUser_ID", 206),
+    (1091962, 256, "M_InventoryLine", "ZC_AdjustmentReason_ID", 115),
+    (1091963, 683, "M_InventoryLine", "ZC_AdjustmentReason_ID", 115),
 ]
 
 # Supplier pre-qualification window: a tab on C_BPartner limited to vendors
@@ -266,6 +288,7 @@ MENUS = [  # (id, name, action, window or process, seq)
     (1091505, "Budget Status Report", "P", PROC_BUDGET_STATUS, 50),
     (1091506, "Withholding Tax Rates (Kenya)", "W", 1091504, 60),
     (1091507, "Withholding Tax Register", "P", PROC_WHT_REGISTER, 70),
+    (1091508, "Stock Adjustment Reasons", "W", 1091505, 80),
 ]
 
 # Windows with header and line tabs. Field IDs: field_base + position.
@@ -279,6 +302,9 @@ MULTI_WINDOWS = [
          desc="Withholding income tax and withholding VAT types and their dated rates",
          tabs=[dict(id=1091505, table=1091504, name="Withholding Type", level=0, seq=10, field_base=1091680),
                dict(id=1091506, table=1091505, name="Rate", level=1, seq=20, field_base=1091720, link="ZC_WHTType_ID")]),
+    dict(id=1091505, name="Stock Adjustment Reasons", wtype="M",
+         desc="Reasons for stock count differences and adjustments, and which of them are write-offs",
+         tabs=[dict(id=1091507, table=1091506, name="Reason", level=0, seq=10, field_base=1091760)]),
 ]
 
 
