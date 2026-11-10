@@ -39,7 +39,8 @@ def uu(kind, key):
 
 
 CORE_ELEMENTS = {"Value", "Name", "Description", "Processed", "DocBaseType", "C_Year_ID", "C_Activity_ID", "Account_ID",
-                 "C_Charge_ID", "ValidFrom", "ValidTo", "C_Period_ID"}
+                 "C_Charge_ID", "ValidFrom", "ValidTo", "C_Period_ID", "M_InOut_ID", "M_InOutLine_ID", "M_Product_ID",
+                 "M_Movement_ID"}
 ACCOUNT_REF_VALUE = 362  # C_ElementValue (trx): posting accounts only
 NUMBER = 22
 QUANTITY = 29
@@ -48,6 +49,7 @@ QUANTITY = 29
 REF_PREQUAL, REF_AQ_STATUS, REF_AQ_SOURCE, REF_RISK = 1091500, 1091501, 1091502, 1091503
 REF_WHT_KIND = 1091504
 REF_COUNT_STATUS = 1091505
+REF_LOCATOR_USE, REF_INSPECTION_STATUS, REF_REJECT_REASON = 1091506, 1091507, 1091508
 REFERENCES = [
     (REF_PREQUAL, "ZC Pre-qualification Status", [("P", "Pending"), ("Q", "Pre-qualified"), ("S", "Suspended"),
                                                  ("B", "Blacklisted")]),
@@ -57,6 +59,11 @@ REFERENCES = [
     (REF_RISK, "ZC Risk Rating", [("H", "High"), ("M", "Medium"), ("L", "Low")]),
     (REF_WHT_KIND, "ZC Withholding Kind", [("W", "Withholding income tax"), ("V", "Withholding VAT")]),
     (REF_COUNT_STATUS, "ZC Count Status", [("O", "Counting"), ("S", "Submitted")]),
+    (REF_LOCATOR_USE, "ZC Locator Use", [("N", "Normal"), ("Q", "Quarantine"), ("R", "Rejected")]),
+    (REF_INSPECTION_STATUS, "ZC Inspection Status", [("DR", "Drafted"), ("CO", "Completed")]),
+    (REF_REJECT_REASON, "ZC Reject Reason", [("DMG", "Damaged"), ("SPC", "Not to specification"),
+                                             ("EXP", "Expired or short shelf life"), ("QTY", "Excess delivery"),
+                                             ("OTH", "Other")]),
 ]
 
 # --- processes -------------------------------------------------------------------------------------
@@ -64,6 +71,7 @@ PROC_CLOSE_AQ = 1091500
 PROC_BUDGET_APPROVE, PROC_BUDGET_STATUS = 1091501, 1091502
 PROC_WHT_REGISTER = 1091503
 PROC_COUNT_SUBMIT, PROC_COUNT_VARIANCE = 1091504, 1091505
+PROC_INSPECTION_LOAD, PROC_INSPECTION_COMPLETE = 1091506, 1091507
 PROCESSES = [
     (PROC_CLOSE_AQ, "ZC_AuditQueryClose", "Close Audit Query",
      "Closes an audit query once the management response and evidence are recorded. The person responsible for "
@@ -88,6 +96,13 @@ PROCESSES = [
      "Differences between counted and book quantities at cost, by item, store and cause, for submitted and posted "
      "counts in a period.",
      "ke.co.pollux.zenithcore.controls.idempiere.process.CountVarianceReport"),
+    (PROC_INSPECTION_LOAD, "ZC_InspectionLoad", "Load Receipt Lines",
+     "Adds the goods received note's lines to the inspection, with the quantities received.",
+     "ke.co.pollux.zenithcore.controls.idempiere.process.InspectionLoad"),
+    (PROC_INSPECTION_COMPLETE, "ZC_InspectionComplete", "Complete Inspection",
+     "Records the accepted and rejected quantities and creates the stock movement that puts accepted goods away and "
+     "moves rejected goods to the rejected location. The store keeper completes the movement.",
+     "ke.co.pollux.zenithcore.controls.idempiere.process.InspectionComplete"),
 ]
 
 PROCESS_PARAMS = [  # (id, process, column, name, reference, mandatory, seq, default)
@@ -124,6 +139,9 @@ SYSCONFIG = [  # (id, name, system default, description); each client sets its o
     (1091510, "ZC_BLIND_COUNT", "N",
      "Y: stock counts are entered blind (Blind Stock Count window), must be submitted before posting, and must not be "
      "counted by the store's custodians"),
+    (1091511, "ZC_GRN_INSPECTION", "N",
+     "Y: stock items are received into quarantine, inspected by someone other than the receiver and custodians, and "
+     "cannot be used or invoiced until accepted"),
 ]
 
 # --- new tables ------------------------------------------------------------------------------------
@@ -223,6 +241,44 @@ TABLES = [
              mandatory=True, help="Stock removed for this reason is a write-off and needs independent approval."),
         dict(col="Description", name="Description", ref=STRING, ddl="VARCHAR(255)", length=255),
     ]),
+    dict(id=1091507, table="ZC_Inspection", name="Goods Inspection", window=1091507, cols=[
+        dict(col="M_InOut_ID", name="Goods received note", ref=SEARCH, ddl="NUMERIC(10) NOT NULL", mandatory=True,
+             identifier=1, fk="M_InOut", valrule=1091500),
+        dict(col="ZC_InspectionStatus", name="Status", ref=LIST, refvalue=REF_INSPECTION_STATUS,
+             ddl="CHAR(2) DEFAULT 'DR' NOT NULL", length=2, default="DR", mandatory=True, readonly=True),
+        dict(col="Description", name="Inspection notes", ref=TEXT, ddl="VARCHAR(2000)", length=2000,
+             help="Committee members, tests carried out, observations."),
+        dict(col="ZC_InspectorUser_ID", name="Inspected by", ref=TABLE, refvalue=AD_USER_REF, ddl="NUMERIC(10)",
+             readonly=True, fk="AD_User"),
+        dict(col="ZC_DateInspected", name="Date inspected", ref=DATETIME, ddl="TIMESTAMP", readonly=True),
+        dict(col="M_Movement_ID", name="Put-away movement", ref=TABLEDIR, ddl="NUMERIC(10)", readonly=True,
+             fk="M_Movement"),
+        dict(col="Processed", name="Processed", ref=YESNO, ddl="CHAR(1) DEFAULT 'N' NOT NULL", default="N",
+             readonly=True, hidden=True),
+        dict(col="ZC_LoadLines", name="Load Receipt Lines", ref=BUTTON, ddl="CHAR(1)", length=1,
+             process=PROC_INSPECTION_LOAD),
+        dict(col="ZC_CompleteInspection", name="Complete Inspection", ref=BUTTON, ddl="CHAR(1)", length=1,
+             process=PROC_INSPECTION_COMPLETE),
+    ]),
+    dict(id=1091508, table="ZC_InspectionLine", name="Goods Inspection Line", window=1091507, cols=[
+        dict(col="ZC_Inspection_ID", name="Inspection", ref=TABLEDIR, ddl="NUMERIC(10) NOT NULL", mandatory=True,
+             parent=True, readonly=True, fk="ZC_Inspection"),
+        dict(col="M_InOutLine_ID", name="Receipt line", ref=TABLEDIR, ddl="NUMERIC(10) NOT NULL", mandatory=True,
+             readonly=True, fk="M_InOutLine"),
+        dict(col="M_Product_ID", name="Item", ref=TABLEDIR, ddl="NUMERIC(10) NOT NULL", mandatory=True, readonly=True,
+             fk="M_Product"),
+        dict(col="ZC_QtyReceived", name="Received", ref=QUANTITY, ddl="NUMERIC DEFAULT 0 NOT NULL", default="0",
+             mandatory=True, readonly=True),
+        dict(col="ZC_QtyAccepted", name="Accepted", ref=QUANTITY, ddl="NUMERIC DEFAULT 0 NOT NULL", default="0",
+             mandatory=True),
+        dict(col="ZC_QtyRejected", name="Rejected", ref=QUANTITY, ddl="NUMERIC DEFAULT 0 NOT NULL", default="0",
+             mandatory=True),
+        dict(col="ZC_RejectReason", name="Reason for rejection", ref=LIST, refvalue=REF_REJECT_REASON, ddl="CHAR(3)",
+             length=3),
+        dict(col="Description", name="Notes", ref=STRING, ddl="VARCHAR(255)", length=255),
+        dict(col="Processed", name="Processed", ref=YESNO, ddl="CHAR(1) DEFAULT 'N' NOT NULL", default="N",
+             readonly=True, hidden=True),
+    ]),
 ]
 
 # --- columns added to iDempiere tables ----------------------------------------------------------------
@@ -270,6 +326,11 @@ EXTENSIONS = [  # (table, column spec)
     ("M_InventoryLine", dict(col="ZC_CountedUser_ID", name="Counted by", ref=TABLE, refvalue=AD_USER_REF,
                              ddl="NUMERIC(10)", readonly=True)),
     ("M_InventoryLine", dict(col="ZC_DateCounted", name="Counted at", ref=DATETIME, ddl="TIMESTAMP", readonly=True)),
+    ("M_Locator", dict(col="ZC_LocatorUse", name="Location use", ref=LIST, refvalue=REF_LOCATOR_USE,
+                       ddl="CHAR(1) DEFAULT 'N'", length=1, default="N",
+                       help="Quarantine: goods awaiting inspection. Rejected: goods to return to the supplier.")),
+    ("M_Movement", dict(col="ZC_Inspection_ID", name="Goods inspection", ref=TABLEDIR, ddl="NUMERIC(10)",
+                        readonly=True, help="Inspection that created this put-away movement.")),
 ]
 EXTENSION_FIELDS = [  # (field id, tab id, table, column, seq): editable fields on iDempiere tabs
     (1091954, 641, "M_Requisition", "C_Activity_ID", 75),
@@ -282,6 +343,7 @@ EXTENSION_FIELDS = [  # (field id, tab id, table, column, seq): editable fields 
     (1091961, 177, "M_Warehouse", "ZC_DeputyCustodianUser_ID", 206),
     (1091962, 256, "M_InventoryLine", "ZC_AdjustmentReason_ID", 115),
     (1091963, 683, "M_InventoryLine", "ZC_AdjustmentReason_ID", 115),
+    (1091964, 178, "M_Locator", "ZC_LocatorUse", 115),
 ]
 
 # Supplier pre-qualification window: a tab on C_BPartner limited to vendors
@@ -318,6 +380,7 @@ MENUS = [  # (id, name, action, window or process, seq)
     (1091508, "Stock Adjustment Reasons", "W", 1091505, 80),
     (1091509, "Blind Stock Count", "W", 1091506, 90),
     (1091510, "Stock Count Variance Report", "P", PROC_COUNT_VARIANCE, 100),
+    (1091511, "Goods Inspection", "W", 1091507, 110),
 ]
 
 # Windows over iDempiere tables with chosen fields: (column, read-only, hidden)
@@ -355,6 +418,17 @@ MULTI_WINDOWS = [
     dict(id=1091505, name="Stock Adjustment Reasons", wtype="M",
          desc="Reasons for stock count differences and adjustments, and which of them are write-offs",
          tabs=[dict(id=1091507, table=1091506, name="Reason", level=0, seq=10, field_base=1091760)]),
+    dict(id=1091507, name="Goods Inspection", wtype="T",
+         desc="Inspection and acceptance of goods received: accepted and rejected quantities, reasons, put-away",
+         tabs=[dict(id=1091510, table=1091507, name="Inspection", level=0, seq=10, field_base=1091860),
+               dict(id=1091511, table=1091508, name="Lines", level=1, seq=20, field_base=1091880,
+                    link="ZC_Inspection_ID")]),
+]
+
+# validation rules
+VAL_RULES = [
+    (1091500, "ZC Completed vendor receipts",
+     "M_InOut.IsSOTrx='N' AND M_InOut.DocStatus IN ('CO','CL') AND M_InOut.MovementType='V+'"),
 ]
 
 
@@ -414,6 +488,9 @@ def main():
     for win in all_windows:
         w(f"INSERT INTO AD_Window (AD_Window_ID,AD_Client_ID,AD_Org_ID,IsActive,Created,CreatedBy,Updated,UpdatedBy,Name,Description,WindowType,IsSOTrx,EntityType,IsDefault,IsBetaFunctionality,AD_Window_UU) "
           f"SELECT {win['id']},0,0,'Y',now(),100,now(),100,{q(win['name'])},{q(win['desc'])},{q(win['wtype'])},'N',{q(ENTITY)},'N','N',{q(uu('window', win['name']))} WHERE NOT EXISTS (SELECT 1 FROM AD_Window WHERE AD_Window_ID={win['id']});")
+    for vid, name, code in VAL_RULES:
+        w(f"INSERT INTO AD_Val_Rule (AD_Val_Rule_ID,AD_Client_ID,AD_Org_ID,IsActive,Created,CreatedBy,Updated,UpdatedBy,Name,Type,Code,EntityType,AD_Val_Rule_UU) "
+          f"SELECT {vid},0,0,'Y',now(),100,now(),100,{q(name)},'S',{q(code)},{q(ENTITY)},{q(uu('valrule', name))} WHERE NOT EXISTS (SELECT 1 FROM AD_Val_Rule WHERE AD_Val_Rule_ID={vid});")
     w("")
 
     elements = {}
