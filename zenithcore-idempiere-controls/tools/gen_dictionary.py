@@ -43,7 +43,7 @@ def uu(kind, key):
 
 CORE_ELEMENTS = {"Value", "Name", "Description", "Processed", "DocBaseType", "C_Year_ID", "C_Activity_ID", "Account_ID",
                  "C_Charge_ID", "ValidFrom", "ValidTo", "C_Period_ID", "M_InOut_ID", "M_InOutLine_ID", "M_Product_ID",
-                 "M_Movement_ID", "C_BankAccount_ID", "C_Invoice_ID", "DateDoc", "Line", "C_BankStatement_ID"}
+                 "M_Movement_ID", "C_BankAccount_ID", "C_Invoice_ID", "DateDoc", "Line", "C_BankStatement_ID", "A_Asset_ID", "A_Asset_Group_ID", "DateFrom"}
 ACCOUNT_REF_VALUE = 362  # C_ElementValue (trx): posting accounts only
 NUMBER = 22
 QUANTITY = 29
@@ -56,6 +56,7 @@ REF_LOCATOR_USE, REF_INSPECTION_STATUS, REF_REJECT_REASON = 1091506, 1091507, 10
 REF_STATEMENT_MATCH = 1091509
 REF_OB_STATUS, REF_OB_ITEM_TYPE = 1091510, 1091511
 REF_BP_STATUS = 1091512
+REF_ASSET_CONDITION, REF_VERIFY_RESULT, REF_VERIFY_STATUS = 1091513, 1091514, 1091515
 REFERENCES = [
     (REF_PREQUAL, "ZC Pre-qualification Status", [("P", "Pending"), ("Q", "Pre-qualified"), ("S", "Suspended"),
                                                  ("B", "Blacklisted")]),
@@ -78,6 +79,10 @@ REFERENCES = [
     (REF_OB_ITEM_TYPE, "ZC Opening Item Type", [("AR", "Customer invoice"), ("AP", "Supplier invoice"), ("ST", "Stock"),
                                                 ("FA", "Fixed asset"), ("BK", "Bank or M-Pesa balance")]),
     (REF_BP_STATUS, "ZC Board Pack Status", [("DR", "Drafted"), ("GE", "Generated"), ("AP", "Approved")]),
+    (REF_ASSET_CONDITION, "ZC Asset Condition", [("G", "Good"), ("F", "Fair"), ("P", "Poor"), ("U", "Unserviceable")]),
+    (REF_VERIFY_RESULT, "ZC Verification Result", [("F", "Found"), ("M", "Found elsewhere"), ("N", "Not found"),
+                                                   ("U", "Not in register")]),
+    (REF_VERIFY_STATUS, "ZC Verification Status", [("DR", "Drafted"), ("CO", "Completed")]),
 ]
 
 # --- processes -------------------------------------------------------------------------------------
@@ -89,6 +94,8 @@ PROC_INSPECTION_LOAD, PROC_INSPECTION_COMPLETE = 1091506, 1091507
 PROC_MATCH_STATEMENT, PROC_BANK_REC = 1091508, 1091509
 PROC_OB_LOAD, PROC_OB_CHECK, PROC_OB_SIGNOFF, PROC_OB_POST = 1091510, 1091511, 1091512, 1091513
 PROC_BP_GENERATE, PROC_BP_APPROVE = 1091514, 1091515
+PROC_ASSET_TAGS, PROC_ASSET_LABELS, PROC_AV_LOAD, PROC_AV_SHEETS, PROC_AV_COMPLETE, PROC_AV_EXCEPTIONS = (
+    1091516, 1091517, 1091518, 1091519, 1091520, 1091521)
 PROCESSES = [
     (PROC_CLOSE_AQ, "ZC_AuditQueryClose", "Close Audit Query",
      "Closes an audit query once the management response and evidence are recorded. The person responsible for "
@@ -151,6 +158,26 @@ PROCESSES = [
      "Approves the latest version for release to the board: someone other than the person who generated it. "
      "Produces the final, stamped copy and locks the pack.",
      "ke.co.pollux.zenithcore.controls.idempiere.process.BoardPackApprove"),
+    (PROC_ASSET_TAGS, "ZC_AssetAssignTags", "Assign Asset Tags",
+     "Gives a tag number with a check digit to every active asset without one (optionally only one group or location).",
+     "ke.co.pollux.zenithcore.controls.idempiere.process.AssetAssignTags"),
+    (PROC_ASSET_LABELS, "ZC_AssetLabels", "Print Asset Labels",
+     "Asset labels with tag number and QR code, 24 to an A4 sheet (63.5 x 33.9 mm). PDF.",
+     "ke.co.pollux.zenithcore.controls.idempiere.process.AssetLabels"),
+    (PROC_AV_LOAD, "ZC_AVLoad", "Load Assets",
+     "Adds a line for every active asset at the location (and group), with its tag, expected location and custodian.",
+     "ke.co.pollux.zenithcore.controls.idempiere.process.AssetVerificationLoad"),
+    (PROC_AV_SHEETS, "ZC_AVSheets", "Print Verification Sheets",
+     "Field sheets by location: assets to look for, boxes for the result and condition, space for assets not in the "
+     "register, and signatures. PDF.",
+     "ke.co.pollux.zenithcore.controls.idempiere.process.AssetVerificationSheets"),
+    (PROC_AV_COMPLETE, "ZC_AVComplete", "Complete Verification",
+     "Checks every line, updates each asset's condition, location and verification date, locks the verification and "
+     "prints the exceptions.",
+     "ke.co.pollux.zenithcore.controls.idempiere.process.AssetVerificationComplete"),
+    (PROC_AV_EXCEPTIONS, "ZC_AVExceptions", "Print Exceptions",
+     "Assets not found, found elsewhere, in poor or unserviceable condition, and assets not in the register. PDF.",
+     "ke.co.pollux.zenithcore.controls.idempiere.process.AssetVerificationExceptions"),
 ]
 
 PROCESS_PARAMS = [  # (id, process, column, name, reference, mandatory, seq, default)
@@ -162,6 +189,11 @@ PROCESS_PARAMS = [  # (id, process, column, name, reference, mandatory, seq, def
     (1091505, PROC_COUNT_VARIANCE, "M_Warehouse_ID", "Store", TABLEDIR, False, 30, None),
     (1091506, PROC_BANK_REC, "C_BankAccount_ID", "Bank or M-Pesa account", TABLEDIR, True, 10, None),
     (1091507, PROC_BANK_REC, "DateTo", "As at", DATE, True, 20, "@#Date@"),
+    (1091508, PROC_ASSET_TAGS, "A_Asset_Group_ID", "Asset group", TABLEDIR, False, 10, None),
+    (1091509, PROC_ASSET_TAGS, "ZC_AssetLocation_ID", "Location", TABLEDIR, False, 20, None),
+    (1091510, PROC_ASSET_LABELS, "A_Asset_Group_ID", "Asset group", TABLEDIR, False, 10, None),
+    (1091511, PROC_ASSET_LABELS, "ZC_AssetLocation_ID", "Location", TABLEDIR, False, 20, None),
+    (1091512, PROC_ASSET_LABELS, "DateFrom", "Tagged on or after", DATE, False, 30, None),
 ]
 
 # --- client switches -------------------------------------------------------------------------------
@@ -203,6 +235,10 @@ SYSCONFIG = [  # (id, name, system default, description); each client sets its o
     (1091515, "ZC_BUSINESS_UNIT_REQUIRED", "N",
      "Y: income and expenditure lines on GL journals, invoices and charge payments must carry a business unit "
      "(accounting dimension User List 1), so the business-unit accounts in the board pack add up"),
+    (1091516, "ZC_ASSET_TAG_PREFIX", "ZC-", "Prefix of asset tag numbers, for example JKIP-"),
+    (1091517, "ZC_ASSET_TAG_DIGITS", "6", "Digits in asset tag numbers before the check digit"),
+    (1091518, "ZC_ASSET_LABEL_TEXT", "Property of the institution. If found, please return.",
+     "Line printed on every asset label (owner and contact)"),
 ]
 
 # --- new tables ------------------------------------------------------------------------------------
@@ -448,6 +484,58 @@ TABLES = [
         dict(col="ZC_GenerateBP", name="Generate Board Pack", ref=BUTTON, ddl="CHAR(1)", length=1, process=PROC_BP_GENERATE),
         dict(col="ZC_ApproveBP", name="Approve Board Pack", ref=BUTTON, ddl="CHAR(1)", length=1, process=PROC_BP_APPROVE),
     ]),
+    dict(id=1091514, table="ZC_AssetLocation", name="Asset Location", window=1091511, col_base=1092160, cols=[
+        dict(col="Value", name="Search key", ref=STRING, ddl="VARCHAR(40) NOT NULL", length=40, mandatory=True),
+        dict(col="Name", name="Name", ref=STRING, ddl="VARCHAR(60) NOT NULL", length=60, mandatory=True, identifier=1,
+             help="Building and room, for example Incubation Block, Room 12."),
+        dict(col="Description", name="Description", ref=STRING, ddl="VARCHAR(255)", length=255),
+        dict(col="ZC_ResponsibleUser_ID", name="Responsible person", ref=TABLE, refvalue=AD_USER_REF, ddl="NUMERIC(10)",
+             fk="AD_User", help="Head of the unit using the location; signs the verification sheet."),
+    ]),
+    dict(id=1091515, table="ZC_AssetVerification", name="Asset Verification", window=1091512, col_base=1092200, cols=[
+        dict(col="Name", name="Name", ref=STRING, ddl="VARCHAR(60) NOT NULL", length=60, mandatory=True, identifier=1),
+        dict(col="DateDoc", name="Verification date", ref=DATE, ddl="TIMESTAMP NOT NULL", mandatory=True,
+             default="@#Date@"),
+        dict(col="ZC_AssetLocation_ID", name="Location", ref=TABLEDIR, ddl="NUMERIC(10)", fk="ZC_AssetLocation",
+             help="Leave empty to verify every location."),
+        dict(col="A_Asset_Group_ID", name="Asset group", ref=TABLEDIR, ddl="NUMERIC(10)", fk="A_Asset_Group",
+             help="Leave empty for every group."),
+        dict(col="ZC_VerifierUser_ID", name="Verified by", ref=TABLE, refvalue=AD_USER_REF, ddl="NUMERIC(10) NOT NULL",
+             mandatory=True, fk="AD_User", help="Person who looked for the assets; not their custodian."),
+        dict(col="Description", name="Board of survey reference", ref=TEXT, ddl="VARCHAR(2000)", length=2000,
+             help="Appointment letter, members and terms of reference."),
+        dict(col="ZC_VerificationStatus", name="Status", ref=LIST, refvalue=REF_VERIFY_STATUS,
+             ddl="CHAR(2) DEFAULT 'DR' NOT NULL", length=2, default="DR", mandatory=True, readonly=True),
+        dict(col="Processed", name="Processed", ref=YESNO, ddl="CHAR(1) DEFAULT 'N' NOT NULL", default="N",
+             readonly=True, hidden=True),
+        dict(col="ZC_AVLoad", name="Load Assets", ref=BUTTON, ddl="CHAR(1)", length=1, process=PROC_AV_LOAD),
+        dict(col="ZC_AVSheets", name="Print Verification Sheets", ref=BUTTON, ddl="CHAR(1)", length=1,
+             process=PROC_AV_SHEETS, always=True),
+        dict(col="ZC_AVComplete", name="Complete Verification", ref=BUTTON, ddl="CHAR(1)", length=1,
+             process=PROC_AV_COMPLETE),
+        dict(col="ZC_AVExceptions", name="Print Exceptions", ref=BUTTON, ddl="CHAR(1)", length=1,
+             process=PROC_AV_EXCEPTIONS, always=True),
+    ]),
+    dict(id=1091516, table="ZC_AssetVerificationLine", name="Asset Verification Line", window=1091512, col_base=1092240,
+         cols=[
+        dict(col="ZC_AssetVerification_ID", name="Asset verification", ref=TABLEDIR, ddl="NUMERIC(10) NOT NULL",
+             mandatory=True, parent=True, readonly=True, fk="ZC_AssetVerification"),
+        dict(col="Line", name="Line", ref=INTEGER, ddl="NUMERIC(10) NOT NULL", mandatory=True),
+        dict(col="A_Asset_ID", name="Asset", ref=SEARCH, ddl="NUMERIC(10)", fk="A_Asset",
+             help="Empty for an asset found that is not in the register."),
+        dict(col="ZC_TagNo", name="Tag number", ref=STRING, ddl="VARCHAR(20)", length=20, identifier=1),
+        dict(col="ZC_ExpectedLocation", name="Expected location", ref=STRING, ddl="VARCHAR(60)", length=60, readonly=True),
+        dict(col="ZC_AssetCustodian_ID", name="Custodian", ref=TABLE, refvalue=AD_USER_REF, ddl="NUMERIC(10)",
+             readonly=True, fk="AD_User"),
+        dict(col="ZC_VerifyResult", name="Result", ref=LIST, refvalue=REF_VERIFY_RESULT, ddl="CHAR(1)", length=1),
+        dict(col="ZC_AssetLocation_ID", name="Found at", ref=TABLEDIR, ddl="NUMERIC(10)", fk="ZC_AssetLocation",
+             help="Where it was found, if not at its own location (or where an unrecorded asset was found)."),
+        dict(col="ZC_Condition", name="Condition", ref=LIST, refvalue=REF_ASSET_CONDITION, ddl="CHAR(1)", length=1),
+        dict(col="Description", name="Remarks", ref=STRING, ddl="VARCHAR(255)", length=255,
+             help="Search done for assets not found; make, model and serial number of assets not in the register."),
+        dict(col="Processed", name="Processed", ref=YESNO, ddl="CHAR(1) DEFAULT 'N' NOT NULL", default="N",
+             readonly=True, hidden=True),
+    ]),
 ]
 
 # --- columns added to iDempiere tables ----------------------------------------------------------------
@@ -509,6 +597,14 @@ EXTENSIONS = [  # (table, column spec)
     ("C_Payment", dict(col="ZC_TrxReference", name="Transaction reference", ref=STRING, ddl="VARCHAR(40)", length=40,
                        help="M-Pesa receipt code, EFT or RTGS reference as it appears on the statement. Used to match "
                             "statement lines; the same reference cannot be receipted twice on one account.")),
+    ("A_Asset", dict(col="ZC_TagNo", name="Tag number", ref=STRING, ddl="VARCHAR(20)", length=20, readonly=True,
+                     help="Given by Assign Asset Tags; printed on the label with a QR code.")),
+    ("A_Asset", dict(col="ZC_DateTagged", name="Date tagged", ref=DATE, ddl="TIMESTAMP", readonly=True)),
+    ("A_Asset", dict(col="ZC_AssetLocation_ID", name="Location", ref=TABLEDIR, ddl="NUMERIC(10)", fk="ZC_AssetLocation")),
+    ("A_Asset", dict(col="ZC_AssetCustodian_ID", name="Custodian", ref=TABLE, refvalue=AD_USER_REF, ddl="NUMERIC(10)",
+                     fk="AD_User", help="Person who holds and answers for the asset.")),
+    ("A_Asset", dict(col="ZC_Condition", name="Condition", ref=LIST, refvalue=REF_ASSET_CONDITION, ddl="CHAR(1)", length=1)),
+    ("A_Asset", dict(col="ZC_DateVerified", name="Last verified", ref=DATE, ddl="TIMESTAMP", readonly=True)),
 ]
 EXTENSION_FIELDS = [  # (field id, tab id, table, column, seq): editable fields on iDempiere tabs
     (1091954, 641, "M_Requisition", "C_Activity_ID", 75),
@@ -526,6 +622,12 @@ EXTENSION_FIELDS = [  # (field id, tab id, table, column, seq): editable fields 
     (1091966, 329, "C_BankStatementLine", "ZC_MatchType", 25),
     (1091967, 329, "C_BankStatementLine", "ZC_MatchNote", 26),
     (1091968, 330, "C_Payment", "ZC_TrxReference", 95),
+    (1091969, 450, "A_Asset", "ZC_TagNo", 22),
+    (1091970, 450, "A_Asset", "ZC_DateTagged", 23),
+    (1091971, 450, "A_Asset", "ZC_AssetLocation_ID", 475),
+    (1091972, 450, "A_Asset", "ZC_AssetCustodian_ID", 476),
+    (1091973, 450, "A_Asset", "ZC_Condition", 477),
+    (1091974, 450, "A_Asset", "ZC_DateVerified", 478),
 ]
 
 # Supplier pre-qualification window: a tab on C_BPartner limited to vendors
@@ -567,6 +669,10 @@ MENUS = [  # (id, name, action, window or process, seq)
     (1091513, "Bank Reconciliation Statement", "P", PROC_BANK_REC, 130),
     (1091514, "Opening Balances", "W", 1091509, 140),
     (1091515, "Board Packs", "W", 1091510, 150),
+    (1091516, "Asset Locations", "W", 1091511, 160),
+    (1091517, "Assign Asset Tags", "P", PROC_ASSET_TAGS, 170),
+    (1091518, "Print Asset Labels", "P", PROC_ASSET_LABELS, 180),
+    (1091519, "Asset Verification", "W", 1091512, 190),
 ]
 
 # Windows over iDempiere tables with chosen fields: (column, read-only, hidden)
@@ -622,6 +728,13 @@ MULTI_WINDOWS = [
     dict(id=1091510, name="Board Packs", wtype="M",
          desc="Monthly board finance committee pack: generate from the ledger, add commentary, approve for release",
          tabs=[dict(id=1091516, table=1091513, name="Board Pack", level=0, seq=10, field_base=1092320)]),
+    dict(id=1091511, name="Asset Locations", wtype="M", desc="Buildings and rooms where assets are kept, for tags and verification",
+         tabs=[dict(id=1091517, table=1091514, name="Location", level=0, seq=10, field_base=1092360)]),
+    dict(id=1091512, name="Asset Verification", wtype="T",
+         desc="Physical verification of fixed assets by location: sheets, results, exceptions for the board of survey",
+         tabs=[dict(id=1091518, table=1091515, name="Verification", level=0, seq=10, field_base=1092400),
+               dict(id=1091519, table=1091516, name="Assets", level=1, seq=20, field_base=1092440,
+                    link="ZC_AssetVerification_ID", order="ZC_AssetVerificationLine.Line")]),
 ]
 
 # validation rules
