@@ -25,5 +25,9 @@ WHERE NOT EXISTS (SELECT 1 FROM ZC_PayrollAcct WHERE ZC_PayrollAcct_ID=1000000);
 UPDATE C_PeriodControl pc SET PeriodStatus='O', Updated=now()
 FROM C_Period p JOIN C_Year y ON y.C_Year_ID=p.C_Year_ID
 WHERE pc.C_Period_ID=p.C_Period_ID AND pc.AD_Client_ID=11
-  AND ((y.FiscalYear='2026' AND p.PeriodNo IN (11,12)) OR (y.FiscalYear='2027' AND p.PeriodNo=1))
+  AND ((y.FiscalYear='2026' AND p.PeriodNo IN (11,12)) OR (y.FiscalYear='2027' AND p.PeriodNo IN (1,2)))
   AND pc.DocBaseType='GLJ' AND pc.PeriodStatus<>'O';
+
+-- GardenWorld's accounting schema opens periods automatically up to 100 days ahead; the demo payrolls run
+-- up to February 2027, so allow 200 days.
+UPDATE C_AcctSchema SET Period_OpenFuture=200 WHERE C_AcctSchema_ID=101 AND Period_OpenFuture<200;

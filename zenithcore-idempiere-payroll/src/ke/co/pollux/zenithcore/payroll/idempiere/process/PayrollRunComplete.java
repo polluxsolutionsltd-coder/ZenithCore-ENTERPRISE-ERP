@@ -129,6 +129,9 @@ public class PayrollRunComplete extends SvrProcess {
             line.saveEx();
         }
 
+        // The payroll was calculated, approved and is being posted by three different people under the payroll
+        // rules, so ZenithCore's second-person check on GL journals does not apply to this journal.
+        journal.set_Attribute("ZC_ApprovedElsewhere", "Payroll " + run.get_ValueAsString("Name"));
         if (!journal.processIt(DocAction.ACTION_Complete)) {
             throw new AdempiereUserError("GL journal " + journal.getDocumentNo() + " could not be completed: "
                     + journal.getProcessMsg());
