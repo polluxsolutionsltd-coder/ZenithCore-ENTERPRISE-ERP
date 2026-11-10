@@ -42,10 +42,12 @@ CORE_ELEMENTS = {"Value", "Name", "Description", "Processed", "DocBaseType", "C_
                  "C_Charge_ID", "ValidFrom", "ValidTo", "C_Period_ID"}
 ACCOUNT_REF_VALUE = 362  # C_ElementValue (trx): posting accounts only
 NUMBER = 22
+QUANTITY = 29
 
 # --- list references -------------------------------------------------------------------------------
 REF_PREQUAL, REF_AQ_STATUS, REF_AQ_SOURCE, REF_RISK = 1091500, 1091501, 1091502, 1091503
 REF_WHT_KIND = 1091504
+REF_COUNT_STATUS = 1091505
 REFERENCES = [
     (REF_PREQUAL, "ZC Pre-qualification Status", [("P", "Pending"), ("Q", "Pre-qualified"), ("S", "Suspended"),
                                                  ("B", "Blacklisted")]),
@@ -54,12 +56,14 @@ REFERENCES = [
                                         ("KR", "KRA"), ("OT", "Other")]),
     (REF_RISK, "ZC Risk Rating", [("H", "High"), ("M", "Medium"), ("L", "Low")]),
     (REF_WHT_KIND, "ZC Withholding Kind", [("W", "Withholding income tax"), ("V", "Withholding VAT")]),
+    (REF_COUNT_STATUS, "ZC Count Status", [("O", "Counting"), ("S", "Submitted")]),
 ]
 
 # --- processes -------------------------------------------------------------------------------------
 PROC_CLOSE_AQ = 1091500
 PROC_BUDGET_APPROVE, PROC_BUDGET_STATUS = 1091501, 1091502
 PROC_WHT_REGISTER = 1091503
+PROC_COUNT_SUBMIT, PROC_COUNT_VARIANCE = 1091504, 1091505
 PROCESSES = [
     (PROC_CLOSE_AQ, "ZC_AuditQueryClose", "Close Audit Query",
      "Closes an audit query once the management response and evidence are recorded. The person responsible for "
@@ -76,12 +80,23 @@ PROCESSES = [
      "Withholding income tax and withholding VAT deducted from supplier invoices in a month, with supplier PINs and "
      "payment dates, for remittance to KRA. CSV.",
      "ke.co.pollux.zenithcore.controls.idempiere.process.WithholdingRegister"),
+    (PROC_COUNT_SUBMIT, "ZC_CountSubmit", "Submit Count",
+     "Closes a blind count: every line must be counted. Takes the book quantity at this moment and the counted "
+     "quantities into the count, ready for the custodian to give reasons and post.",
+     "ke.co.pollux.zenithcore.controls.idempiere.process.CountSubmit"),
+    (PROC_COUNT_VARIANCE, "ZC_CountVariance", "Stock Count Variance Report",
+     "Differences between counted and book quantities at cost, by item, store and cause, for submitted and posted "
+     "counts in a period.",
+     "ke.co.pollux.zenithcore.controls.idempiere.process.CountVarianceReport"),
 ]
 
 PROCESS_PARAMS = [  # (id, process, column, name, reference, mandatory, seq, default)
     (1091500, PROC_BUDGET_STATUS, "C_Year_ID", "Financial year", TABLEDIR, True, 10, None),
     (1091501, PROC_BUDGET_STATUS, "C_Activity_ID", "Cost centre", TABLEDIR, False, 20, None),
     (1091502, PROC_WHT_REGISTER, "C_Period_ID", "Month", TABLEDIR, True, 10, None),
+    (1091503, PROC_COUNT_VARIANCE, "DateFrom", "Counts from", DATE, True, 10, None),
+    (1091504, PROC_COUNT_VARIANCE, "DateTo", "Counts to", DATE, True, 20, "@#Date@"),
+    (1091505, PROC_COUNT_VARIANCE, "M_Warehouse_ID", "Store", TABLEDIR, False, 30, None),
 ]
 
 # --- client switches -------------------------------------------------------------------------------
@@ -106,6 +121,9 @@ SYSCONFIG = [  # (id, name, system default, description); each client sets its o
      "write-offs need independent approval"),
     (1091509, "ZC_WRITEOFF_APPROVAL_FROM", "0",
      "Write-offs at or above this value need approval by someone other than the preparer and the custodians; 0 = all"),
+    (1091510, "ZC_BLIND_COUNT", "N",
+     "Y: stock counts are entered blind (Blind Stock Count window), must be submitted before posting, and must not be "
+     "counted by the store's custodians"),
 ]
 
 # --- new tables ------------------------------------------------------------------------------------
@@ -243,6 +261,15 @@ EXTENSIONS = [  # (table, column spec)
                          ddl="NUMERIC(10)")),
     ("M_InventoryLine", dict(col="ZC_AdjustmentReason_ID", name="Reason", ref=TABLEDIR, ddl="NUMERIC(10)",
                              help="Why stock is changed on this line. Needed for every difference.")),
+    ("M_Inventory", dict(col="ZC_CountStatus", name="Count status", ref=LIST, refvalue=REF_COUNT_STATUS,
+                         ddl="CHAR(1) DEFAULT 'O'", length=1, default="O", readonly=True)),
+    ("M_Inventory", dict(col="ZC_SubmitCount", name="Submit Count", ref=BUTTON, ddl="CHAR(1)", length=1,
+                         process=PROC_COUNT_SUBMIT)),
+    ("M_InventoryLine", dict(col="ZC_QtyCounted", name="Counted", ref=QUANTITY, ddl="NUMERIC",
+                             help="Quantity found. Enter 0 for an item that is not there.")),
+    ("M_InventoryLine", dict(col="ZC_CountedUser_ID", name="Counted by", ref=TABLE, refvalue=AD_USER_REF,
+                             ddl="NUMERIC(10)", readonly=True)),
+    ("M_InventoryLine", dict(col="ZC_DateCounted", name="Counted at", ref=DATETIME, ddl="TIMESTAMP", readonly=True)),
 ]
 EXTENSION_FIELDS = [  # (field id, tab id, table, column, seq): editable fields on iDempiere tabs
     (1091954, 641, "M_Requisition", "C_Activity_ID", 75),
@@ -289,6 +316,29 @@ MENUS = [  # (id, name, action, window or process, seq)
     (1091506, "Withholding Tax Rates (Kenya)", "W", 1091504, 60),
     (1091507, "Withholding Tax Register", "P", PROC_WHT_REGISTER, 70),
     (1091508, "Stock Adjustment Reasons", "W", 1091505, 80),
+    (1091509, "Blind Stock Count", "W", 1091506, 90),
+    (1091510, "Stock Count Variance Report", "P", PROC_COUNT_VARIANCE, 100),
+]
+
+# Windows over iDempiere tables with chosen fields: (column, read-only, hidden)
+CORE_WINDOWS = [
+    dict(id=1091506, name="Blind Stock Count", wtype="T",
+         desc="Enter stock counts without seeing book quantities; submit when every line is counted",
+         tabs=[dict(id=1091508, table="M_Inventory", name="Count", level=0, seq=10, field_base=1091800, insert=False,
+                    where="M_Inventory.DocStatus IN ('DR','IP','IN') AND M_Inventory.C_DocType_ID IN "
+                          "(SELECT C_DocType_ID FROM C_DocType WHERE DocSubTypeInv='PI')",
+                    fields=[("M_Inventory_ID", True, True), ("AD_Client_ID", True, True), ("AD_Org_ID", True, True),
+                            ("IsActive", True, True), ("Processed", True, True), ("DocumentNo", True, False),
+                            ("M_Warehouse_ID", True, False), ("MovementDate", True, False),
+                            ("Description", True, False), ("ZC_CountStatus", True, False), ("ZC_SubmitCount", False, False)]),
+               dict(id=1091509, table="M_InventoryLine", name="Count Lines", level=1, seq=20, field_base=1091840,
+                    insert=True, link="M_Inventory_ID", readonly_logic="@ZC_CountStatus@=S", order="M_InventoryLine.Line",
+                    fields=[("M_InventoryLine_ID", True, True), ("AD_Client_ID", True, True), ("AD_Org_ID", True, True),
+                            ("IsActive", True, True), ("Processed", True, True), ("M_Inventory_ID", True, True),
+                            ("Line", True, False), ("M_Locator_ID", False, False), ("M_Product_ID", False, False),
+                            ("M_AttributeSetInstance_ID", False, False), ("C_UOM_ID", True, False),
+                            ("ZC_QtyCounted", False, False), ("ZC_CountedUser_ID", True, False),
+                            ("ZC_DateCounted", True, False), ("Description", False, False)])]),
 ]
 
 # Windows with header and line tabs. Field IDs: field_base + position.
@@ -359,7 +409,7 @@ def main():
     for sid, name, value, desc in SYSCONFIG:
         w(f"INSERT INTO AD_SysConfig (AD_SysConfig_ID,AD_Client_ID,AD_Org_ID,IsActive,Created,CreatedBy,Updated,UpdatedBy,Name,Value,Description,EntityType,ConfigurationLevel,AD_SysConfig_UU) "
           f"SELECT {sid},0,0,'Y',now(),100,now(),100,{q(name)},{q(value)},{q(desc)},{q(ENTITY)},'C',{q(uu('sysconfig', name))} WHERE NOT EXISTS (SELECT 1 FROM AD_SysConfig WHERE AD_SysConfig_ID={sid});")
-    all_windows = WINDOWS + MULTI_WINDOWS + [dict(id=PREQUAL_WINDOW, name="Supplier Pre-qualification (Kenya)", wtype="M",
+    all_windows = WINDOWS + MULTI_WINDOWS + CORE_WINDOWS + [dict(id=PREQUAL_WINDOW, name="Supplier Pre-qualification (Kenya)", wtype="M",
                                   desc="Pre-qualification status, tax compliance certificate and blacklist of suppliers")]
     for win in all_windows:
         w(f"INSERT INTO AD_Window (AD_Window_ID,AD_Client_ID,AD_Org_ID,IsActive,Created,CreatedBy,Updated,UpdatedBy,Name,Description,WindowType,IsSOTrx,EntityType,IsDefault,IsBetaFunctionality,AD_Window_UU) "
@@ -468,6 +518,20 @@ def main():
         w(f"INSERT INTO AD_Process_Para (AD_Process_Para_ID,AD_Client_ID,AD_Org_ID,IsActive,Created,CreatedBy,Updated,UpdatedBy,Name,AD_Process_ID,SeqNo,AD_Reference_ID,IsRange,FieldLength,IsMandatory,ColumnName,IsCentrallyMaintained,EntityType,IsEncrypted,DefaultValue,AD_Element_ID,AD_Process_Para_UU) "
           f"SELECT {ppid},0,0,'Y',now(),100,now(),100,{q(name)},{pid},{seqno},{ref},'N',10,{q('Y' if mand else 'N')},{q(cn)},'N',{q(ENTITY)},'N',{q(default)},"
           f"(SELECT AD_Element_ID FROM AD_Element WHERE ColumnName={q(cn)} AND AD_Client_ID=0),{q(uu('para', str(ppid)))} WHERE NOT EXISTS (SELECT 1 FROM AD_Process_Para WHERE AD_Process_Para_ID={ppid});")
+    w("")
+    # windows over iDempiere tables
+    for win in CORE_WINDOWS:
+        for tab in win["tabs"]:
+            tid_expr = f"(SELECT AD_Table_ID FROM AD_Table WHERE TableName={q(tab['table'])})"
+            link = core_col(tab["table"], tab["link"]) if tab.get("link") else "NULL"
+            w(f"INSERT INTO AD_Tab (AD_Tab_ID,AD_Client_ID,AD_Org_ID,IsActive,Created,CreatedBy,Updated,UpdatedBy,Name,AD_Table_ID,AD_Window_ID,SeqNo,TabLevel,IsSingleRow,IsTranslationTab,IsReadOnly,AD_Column_ID,HasTree,IsSortTab,EntityType,IsInsertRecord,IsAdvancedTab,TreeDisplayedOn,WhereClause,ReadOnlyLogic,OrderByClause,AD_Tab_UU) "
+              f"SELECT {tab['id']},0,0,'Y',now(),100,now(),100,{q(tab['name'])},{tid_expr},{win['id']},{tab['seq']},{tab['level']},{q('Y' if tab['level'] == 0 else 'N')},'N','N',{link},'N','N',{q(ENTITY)},{q('Y' if tab['insert'] else 'N')},'N','B',{q(tab.get('where'))},{q(tab.get('readonly_logic'))},{q(tab.get('order'))},{q(uu('tab', str(tab['id'])))} WHERE NOT EXISTS (SELECT 1 FROM AD_Tab WHERE AD_Tab_ID={tab['id']});")
+            seq = 0
+            for i, (cn, ro, hidden) in enumerate(tab["fields"]):
+                if not hidden:
+                    seq += 10
+                expr = str(col_ids[(tab["table"], cn)]) if (tab["table"], cn) in col_ids else core_col(tab["table"], cn)
+                field_sql(w, tab["field_base"] + i, tab["id"], expr, cn, seq, hidden=hidden, readonly=ro)
     w("")
     # menu
     w(f"INSERT INTO AD_Menu (AD_Menu_ID,AD_Client_ID,AD_Org_ID,IsActive,Created,CreatedBy,Updated,UpdatedBy,Name,Description,IsSummary,IsSOTrx,IsReadOnly,EntityType,AD_Menu_UU) "

@@ -35,6 +35,7 @@ import org.compiere.util.DB;
 import org.compiere.util.Env;
 import org.osgi.service.event.Event;
 
+import ke.co.pollux.zenithcore.controls.BlindCount;
 import ke.co.pollux.zenithcore.controls.BudgetCheck;
 import ke.co.pollux.zenithcore.controls.ControlResult;
 import ke.co.pollux.zenithcore.controls.SecondPersonApproval;
@@ -75,11 +76,17 @@ public class ControlsEventHandler extends AbstractEventHandler {
             registerTableEvent(IEventTopics.DOC_BEFORE_COMPLETE, table);
         }
         registerTableEvent(IEventTopics.DOC_BEFORE_PREPARE, "C_Invoice");
+        registerTableEvent(IEventTopics.PO_BEFORE_NEW, "M_InventoryLine");
+        registerTableEvent(IEventTopics.PO_BEFORE_CHANGE, "M_InventoryLine");
     }
 
     @Override
     protected void doHandleEvent(Event event) {
         PO po = getPO(event);
+        if ("M_InventoryLine".equals(po.get_TableName())) {
+            countLineChanged(event, po);
+            return;
+        }
         if (IEventTopics.DOC_BEFORE_PREPARE.equals(event.getTopic())) {
             prepareInvoice(event, po);
             return;
@@ -98,6 +105,22 @@ public class ControlsEventHandler extends AbstractEventHandler {
             log.severe("ZenithCore controls failed on " + po.get_TableName() + " " + po.get_ID() + ": " + e);
             addErrorMessage(event, "ZenithCore controls could not check this document: " + e.getMessage());
         }
+    }
+
+    /** Blind counts: record who counted a line and when; no changes to counts once submitted. */
+    private void countLineChanged(Event event, PO po) {
+        boolean isNew = IEventTopics.PO_BEFORE_NEW.equals(event.getTopic());
+        boolean counted = isNew ? po.get_Value("ZC_QtyCounted") != null : po.is_ValueChanged("ZC_QtyCounted");
+        if (!counted) {
+            return;
+        }
+        MInventory inv = new MInventory(po.getCtx(), po.get_ValueAsInt("M_Inventory_ID"), po.get_TrxName());
+        if ("S".equals(inv.get_ValueAsString("ZC_CountStatus")) || inv.isProcessed()) {
+            addErrorMessage(event, "Blind count: count " + inv.getDocumentNo() + " is already submitted; counts can no longer be changed");
+            return;
+        }
+        po.set_ValueNoCheck("ZC_CountedUser_ID", Env.getAD_User_ID(po.getCtx()));
+        po.set_ValueNoCheck("ZC_DateCounted", new Timestamp(System.currentTimeMillis()));
     }
 
     /** Withholding deduction lines on supplier invoices (client setting ZC_WITHHOLDING). */
@@ -206,6 +229,9 @@ public class ControlsEventHandler extends AbstractEventHandler {
                     break; // cost adjustments are a finance document
                 }
                 boolean count = MDocType.DOCSUBTYPEINV_PhysicalInventory.equals(sub);
+                if (count && MSysConfig.getBooleanValue("ZC_BLIND_COUNT", false, po.getAD_Client_ID())) {
+                    out.add(BlindCount.complete(label, "S".equals(po.get_ValueAsString("ZC_CountStatus"))));
+                }
                 List<StoresControl.AdjustmentLine> lines = new ArrayList<>();
                 for (MInventoryLine l : ((MInventory) po).getLines(true)) {
                     BigDecimal change = count ? l.getQtyCount().subtract(l.getQtyBook()) : l.getQtyInternalUse().negate();
