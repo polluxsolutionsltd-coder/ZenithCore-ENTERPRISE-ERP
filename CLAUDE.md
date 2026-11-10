@@ -33,7 +33,7 @@
 
 ## Pending critical items
 - CRIT-01 KRA eTIMS OSCU connector is on hold until the KRA specification documents are added under `docs/etims/`. Do not build it from guesses. Details: `docs/pending-critical.md`.
-- CRIT-02 Official upload layouts (iTax P10, withholding tax, withholding VAT, VAT3, NSSF, SHA, Housing Levy, NITA, HELB, bank) wait for the current templates under `docs/payroll/templates/`. Until then Statutory Schedules produces working CSV schedules only; do not guess layouts.
+- CRIT-02 Official upload layouts (iTax P10, withholding tax, withholding VAT, VAT3, NSSF, SHA, Housing Levy, NITA, HELB, bank; plus M-Pesa and bank statement export samples for the import formats) wait for the current templates under `docs/payroll/templates/`. Until then Statutory Schedules produces working CSV schedules only; do not guess layouts.
 
 ## Workflow
 - Branch from `main`, open a pull request, a Pollux developer reviews before merge.
