@@ -9,6 +9,8 @@ import java.util.Map;
 
 import org.adempiere.base.event.AbstractEventHandler;
 import org.adempiere.base.event.IEventTopics;
+import org.compiere.model.MAttributeSet;
+import org.compiere.model.MAttributeSetInstance;
 import org.compiere.model.MBPartner;
 import org.compiere.model.MBankStatement;
 import org.compiere.model.MBankStatementLine;
@@ -46,6 +48,7 @@ import ke.co.pollux.zenithcore.controls.BudgetCheck;
 import ke.co.pollux.zenithcore.controls.ControlResult;
 import ke.co.pollux.zenithcore.controls.GoodsInspection;
 import ke.co.pollux.zenithcore.controls.SecondPersonApproval;
+import ke.co.pollux.zenithcore.controls.StockAnalysis;
 import ke.co.pollux.zenithcore.controls.StoresControl;
 import ke.co.pollux.zenithcore.controls.SupplierGate;
 import ke.co.pollux.zenithcore.controls.ThreeWayMatch;
@@ -261,7 +264,15 @@ public class ControlsEventHandler extends AbstractEventHandler {
             }
         }
 
-        // 8. Budget check
+        // 8. Expired stock: written off or set aside only; lots chosen for products with expiry dates
+        if (MSysConfig.getBooleanValue("ZC_BLOCK_EXPIRED_ISSUE", false, clientId)) {
+            ControlResult r = expiredCheck(po, label, dt);
+            if (r != null) {
+                results.add(r);
+            }
+        }
+
+        // 9. Budget check
         boolean budgetDoc = "M_Requisition".equals(table) || ("C_Order".equals(table) && !po.get_ValueAsBoolean("IsSOTrx"))
                 || ("C_Invoice".equals(table) && MDocType.DOCBASETYPE_APInvoice.equals(base))
                 || ("C_Payment".equals(table) && !po.get_ValueAsBoolean("IsReceipt") && po.get_ValueAsInt("C_Charge_ID") > 0
@@ -372,6 +383,66 @@ public class ControlsEventHandler extends AbstractEventHandler {
                 return null;
             }
         }
+    }
+
+    /** Customer shipments, internal use and movements, checked for expired lots (StockAnalysis.checkExpired). */
+    private static ControlResult expiredCheck(PO po, String label, MDocType dt) {
+        List<StockAnalysis.Issue> lines = new ArrayList<>();
+        String trx = po.get_TrxName();
+        switch (po.get_TableName()) {
+            case "M_InOut" -> {
+                if (!MInOut.MOVEMENTTYPE_CustomerShipment.equals(((MInOut) po).getMovementType())) {
+                    return null;
+                }
+                for (MInOutLine l : ((MInOut) po).getLines(true)) {
+                    if (l.getM_Product_ID() > 0 && l.getMovementQty().signum() > 0) {
+                        lines.add(issue(l.getLine(), l.getM_Product_ID(), l.getM_AttributeSetInstance_ID(),
+                                StockAnalysis.IssueKind.SHIPMENT, false, trx));
+                    }
+                }
+            }
+            case "M_Inventory" -> {
+                if (dt == null || !MDocType.DOCSUBTYPEINV_InternalUseInventory.equals(dt.getDocSubTypeInv())) {
+                    return null; // counts record what is there, expired or not
+                }
+                for (MInventoryLine l : ((MInventory) po).getLines(true)) {
+                    if (l.getQtyInternalUse().signum() <= 0) {
+                        continue; // returns to the store
+                    }
+                    int reasonId = l.get_ValueAsInt("ZC_AdjustmentReason_ID");
+                    boolean writeOff = reasonId > 0 && org.compiere.model.MTable.get(po.getCtx(), "ZC_AdjustmentReason")
+                            .getPO(reasonId, trx).get_ValueAsBoolean("ZC_IsWriteOff");
+                    lines.add(issue(l.getLine(), l.getM_Product_ID(), l.getM_AttributeSetInstance_ID(),
+                            StockAnalysis.IssueKind.INTERNAL_USE, writeOff, trx));
+                }
+            }
+            case "M_Movement" -> {
+                for (MMovementLine l : ((MMovement) po).getLines(true)) {
+                    boolean hold = GoodsInspection.LocationUse.of(MLocator.get(l.getM_LocatorTo_ID()).get_ValueAsString("ZC_LocatorUse"))
+                            != GoodsInspection.LocationUse.NORMAL;
+                    lines.add(issue(l.getLine(), l.getM_Product_ID(), l.getM_AttributeSetInstance_ID(),
+                            hold ? StockAnalysis.IssueKind.MOVE_TO_HOLD : StockAnalysis.IssueKind.MOVE_TO_NORMAL, false, trx));
+                }
+            }
+            default -> {
+                return null;
+            }
+        }
+        return StockAnalysis.checkExpired(label, lines, documentDate(po));
+    }
+
+    private static StockAnalysis.Issue issue(int line, int productId, int asiId, StockAnalysis.IssueKind kind, boolean writeOff, String trx) {
+        MProduct p = MProduct.get(productId);
+        MAttributeSet set = p.getM_AttributeSet_ID() > 0 ? MAttributeSet.get(p.getM_AttributeSet_ID()) : null;
+        boolean tracked = set != null && set.isGuaranteeDate();
+        if (asiId <= 0) {
+            return new StockAnalysis.Issue(line, p.getName(), null, null, kind, writeOff, tracked && p.isStocked());
+        }
+        MAttributeSetInstance asi = new MAttributeSetInstance(p.getCtx(), asiId, trx);
+        Timestamp exp = asi.getGuaranteeDate();
+        String lot = asi.getLot() != null && !asi.getLot().isBlank() ? asi.getLot() : asi.getSerNo();
+        return new StockAnalysis.Issue(line, p.getName(), lot, exp == null ? null : exp.toLocalDateTime().toLocalDate(), kind, writeOff,
+                false);
     }
 
     private static GoodsInspection.StockLine stockLine(int line, int productId, int locatorId) {

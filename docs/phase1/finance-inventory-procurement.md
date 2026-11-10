@@ -22,13 +22,14 @@ Legend: **iDempiere** = standard feature, needs configuration and testing only. 
 | Board pack generator, business-unit accounts | Business units: iDempiere accounting dimension User List 1 (configuration). ZenithCore: Board Packs window (generate from the ledger, budgets, open items, bank accounts and audit queries; versions attached; approval by a second person stamps the reviewed version), business unit required on income and expenditure (ZC_BUSINESS_UNIT_REQUIRED) | Built, verified |
 | Fixed asset tags and printed verification sheets | iDempiere fixed assets (register, depreciation). ZenithCore: tag numbers with a check digit, QR labels (24 per A4 sheet), asset locations and custodians, Asset Verification window (field sheets by location, results, independence of the verifier, exceptions for the board of survey, register updated) | Built, verified |
 | Kenyan chart of accounts and setup template | iDempiere Initial Tenant Setup and Import Account with ZenithCore's `setup/kenya/AccountingKE.csv` (IPSAS-grouped, Kenyan accounts, all iDempiere default accounts). ZenithCore: Apply Kenya Setup (VAT rates, charges, withholding types and dated rates from versioned data files, checked in CI) | Built, verified on a new tenant. Shipped as data files and a process instead of a 2Pack: reviewable, dated and safe to re-run |
+| Expiry, slow-moving and wastage reports; batch, serial and expiry; QR labels | Lots, serial numbers and expiry dates: iDempiere attribute sets (configuration). ZenithCore: expired-stock control on shipments, internal use and movements (ZC_BLOCK_EXPIRED_ISSUE), Stock Expiry Report, Slow and Non-moving Stock (policy settings per client), Stock Wastage Report (write-offs by reason, store and item; rejections apart), Print Stock Labels (lot or serial QR labels from a goods received note or a store) | Built, verified |
 | VAT and withholding tax | VAT: iDempiere taxes (configure 16%, zero-rated, exempt). Withholding income tax and withholding VAT: ZenithCore dated rates, deduction lines on supplier invoices, register | Built, verified (resident professional fees, WHVAT); iTax layouts wait on CRIT-02 |
 
 ## Remaining Phase 1 work, in build order
 
 | # | Item | How | Notes |
 | --- | --- | --- | --- |
-| 1 | Expiry, slow-moving and wastage reports; batch, serial, expiry, QR labels | iDempiere + ZenithCore reports | |
+| 1 | Phase 1 roles: store keeper, counter, inspection committee, cashier, procurement, finance, board-pack approver, asset verifier | iDempiere roles; ZenithCore access script per role | Separation of duties to match the controls |
 
 ## Standard iDempiere, configuration only
 
