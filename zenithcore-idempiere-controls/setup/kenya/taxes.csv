@@ -1,0 +1,4 @@
+category,name,rate,valid_from,sopo,exempt,default,source
+Standard rated,VAT 16%,16,2013-09-02,B,N,Y,"VAT Act 2013 s.5(2)(a); PwC Worldwide Tax Summaries Kenya, reviewed 17 Jul 2026"
+Zero rated,VAT 0% (zero rated),0,2013-09-02,B,N,N,"VAT Act 2013 Second Schedule; zero-rated supplies keep input tax"
+Exempt,VAT exempt,0,2013-09-02,B,Y,N,"VAT Act 2013 First Schedule; exempt supplies, no input tax; also used for withholding deduction lines"

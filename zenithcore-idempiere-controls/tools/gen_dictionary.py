@@ -96,6 +96,7 @@ PROC_OB_LOAD, PROC_OB_CHECK, PROC_OB_SIGNOFF, PROC_OB_POST = 1091510, 1091511, 1
 PROC_BP_GENERATE, PROC_BP_APPROVE = 1091514, 1091515
 PROC_ASSET_TAGS, PROC_ASSET_LABELS, PROC_AV_LOAD, PROC_AV_SHEETS, PROC_AV_COMPLETE, PROC_AV_EXCEPTIONS = (
     1091516, 1091517, 1091518, 1091519, 1091520, 1091521)
+PROC_KENYA_SETUP = 1091522
 PROCESSES = [
     (PROC_CLOSE_AQ, "ZC_AuditQueryClose", "Close Audit Query",
      "Closes an audit query once the management response and evidence are recorded. The person responsible for "
@@ -178,6 +179,10 @@ PROCESSES = [
     (PROC_AV_EXCEPTIONS, "ZC_AVExceptions", "Print Exceptions",
      "Assets not found, found elsewhere, in poor or unserviceable condition, and assets not in the register. PDF.",
      "ke.co.pollux.zenithcore.controls.idempiere.process.AssetVerificationExceptions"),
+    (PROC_KENYA_SETUP, "ZC_ApplyKenyaSetup", "Apply Kenya Setup",
+     "Adds the Kenyan VAT rates, ZenithCore charges and withholding types and dated rates to this tenant (after Initial "
+     "Tenant Setup and Import Account with AccountingKE.csv). Safe to run again; reports rates that differ.",
+     "ke.co.pollux.zenithcore.controls.idempiere.process.ApplyKenyaSetup"),
 ]
 
 PROCESS_PARAMS = [  # (id, process, column, name, reference, mandatory, seq, default)
@@ -673,6 +678,7 @@ MENUS = [  # (id, name, action, window or process, seq)
     (1091517, "Assign Asset Tags", "P", PROC_ASSET_TAGS, 170),
     (1091518, "Print Asset Labels", "P", PROC_ASSET_LABELS, 180),
     (1091519, "Asset Verification", "W", 1091512, 190),
+    (1091520, "Apply Kenya Setup", "P", PROC_KENYA_SETUP, 200),
 ]
 
 # Windows over iDempiere tables with chosen fields: (column, read-only, hidden)
