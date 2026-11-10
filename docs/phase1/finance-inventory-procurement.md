@@ -18,17 +18,17 @@ Legend: **iDempiere** = standard feature, needs configuration and testing only. 
 | Blind counts on a tablet browser; variance report by item, store and cause | ZenithCore: Blind Stock Count window, Submit Count, Stock Count Variance Report | Built, verified |
 | Goods received with inspection and rejection; quarantine locations | ZenithCore: locator use (normal, quarantine, rejected), Goods Inspection window, put-away movement, three-way match on accepted quantities | Built, verified |
 | M-Pesa and bank statement import, matching and reconciliation | Import: iDempiere Import File Loader + Import Bank Statement, one loader format per bank or M-Pesa export (data). ZenithCore: Match Statement, statement matching rules, transaction reference on payments with duplicate check, completion check, Bank Reconciliation Statement | Built, verified (test layout); real loader formats wait for sample exports (CRIT-02) |
+| Opening-balance clean-up workbench | ZenithCore: Opening Balances window (trial balance and sub-ledger CSV templates, mapping to the new chart, adjustments with reasons, audited figures, control accounts against sub-ledgers), reconciliation PDF, sign-off by a second person, posting of opening invoices, bank statements and journal through a clearing account | Built, verified; stock and assets are reconciled here and loaded with iDempiere's imports |
 | VAT and withholding tax | VAT: iDempiere taxes (configure 16%, zero-rated, exempt). Withholding income tax and withholding VAT: ZenithCore dated rates, deduction lines on supplier invoices, register | Built, verified (resident professional fees, WHVAT); iTax layouts wait on CRIT-02 |
 
 ## Remaining Phase 1 work, in build order
 
 | # | Item | How | Notes |
 | --- | --- | --- | --- |
-| 1 | Opening-balance clean-up workbench | ZenithCore | Import trial balance and sub-ledgers, reconcile to audited figures, post once signed |
-| 2 | Board pack generator, business-unit accounts | ZenithCore report on iDempiere financial reports | Business units as a reporting dimension (User List 1 or Activity) |
-| 3 | Fixed asset tags and printed verification sheets | iDempiere assets + ZenithCore labels and sheets | |
-| 4 | Kenyan chart of accounts and setup template (2Pack) | ZenithCore data | Loaded per institution |
-| 5 | Expiry, slow-moving and wastage reports; batch, serial, expiry, QR labels | iDempiere + ZenithCore reports | |
+| 1 | Board pack generator, business-unit accounts | ZenithCore report on iDempiere financial reports | Business units as a reporting dimension (User List 1 or Activity) |
+| 2 | Fixed asset tags and printed verification sheets | iDempiere assets + ZenithCore labels and sheets | |
+| 3 | Kenyan chart of accounts and setup template (2Pack) | ZenithCore data | Loaded per institution |
+| 4 | Expiry, slow-moving and wastage reports; batch, serial, expiry, QR labels | iDempiere + ZenithCore reports | |
 
 ## Standard iDempiere, configuration only
 

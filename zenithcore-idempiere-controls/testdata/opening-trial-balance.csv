@@ -1,0 +1,10 @@
+account_code,account_name,debit,credit,audited_debit,audited_credit,new_account,adjustment,adjustment_reason
+1001,KCB Main Account,"850,000.00",,"850,000.00",,11190,,
+1101,Tenant Debtors,"412,500.00",,"392,500.00",,12110,-20000.00,
+1201,Office Equipment,"1,200,000.00",,"1,200,000.00",,17300,,
+1202,Accumulated Depreciation - Equipment,,"480,000.00",,"480,000.00",18230,,
+1999,Suspense,"15,000.00",,0.00,,,-15000.00,Audit adjustment 5: suspense cleared to retained earnings
+2001,Trade Creditors,,"310,000.00",,"310,000.00",21100,,
+2101,VAT Payable,,"46,000.00",,"46,000.00",22400,,
+3001,Capital Fund,,"1,000,000.00",,"1,000,000.00",31000,,
+3101,Retained Earnings,,"641,500.00",,"606,500.00",31010,35000.00,Audit adjustments 3 and 5
