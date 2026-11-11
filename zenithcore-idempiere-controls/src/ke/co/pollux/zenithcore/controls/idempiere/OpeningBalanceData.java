@@ -154,11 +154,11 @@ public final class OpeningBalanceData {
         }
     }
 
-    interface Row {
+    public interface Row {
         void read(ResultSet rs) throws Exception;
     }
 
-    static void query(String trx, String sql, Row row, Object... params) {
+    public static void query(String trx, String sql, Row row, Object... params) {
         try (PreparedStatement ps = DB.prepareStatement(sql, trx)) {
             DB.setParameters(ps, params);
             try (ResultSet rs = ps.executeQuery()) {

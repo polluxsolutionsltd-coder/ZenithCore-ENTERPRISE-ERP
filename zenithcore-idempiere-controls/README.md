@@ -164,6 +164,27 @@ Invalid) and the user sees every reason at once. Reversals are not checked.
     "APPROVED FOR RELEASE" on every page, attaches it and locks the pack.
   - Samples: [cover](../docs/images/board-pack-cover.png), [statements](../docs/images/board-pack-statements.png),
     [business units](../docs/images/board-pack-units.png).
+- **Fixed asset tags and verification** (on iDempiere's fixed asset register).
+  - **Asset Locations** window: buildings and rooms, each with a responsible person. The Asset window gains tag
+    number, date tagged, location, custodian, condition and last verified.
+  - **Assign Asset Tags** (menu) gives each untagged active asset the next number with a Luhn check digit
+    (`ZC_ASSET_TAG_PREFIX`, `ZC_ASSET_TAG_DIGITS`; for example JKIP-000123-0), so a mistyped tag is caught. Tags are
+    never changed or reused.
+  - **Print Asset Labels** (menu): 24 labels per A4 sheet (63.5 x 33.9 mm), each with a QR code of the tag, the
+    institution, the asset, the tag in large type and the owner text (`ZC_ASSET_LABEL_TEXT`). Sample:
+    [docs/images/asset-labels.png](../docs/images/asset-labels.png).
+  - **Asset Verification** window: location (or all), group, verifier, board of survey reference.
+    - **Load Assets** adds the assets with tag, expected location and custodian.
+    - **Print Verification Sheets** gives one field sheet per location, with boxes for found here, elsewhere or not
+      found and the condition, rows for assets not in the register, and signatures
+      ([sample](../docs/images/asset-verification-sheet.png)).
+    - Results go on the Assets tab.
+    - **Complete Verification** checks every line: a result; a condition for assets seen; where an asset found
+      elsewhere was found; the search done for assets not found; a description and a valid tag for assets not in the
+      register; and a verifier who is not the custodian. It then records condition and date on each asset seen, moves
+      assets found elsewhere in the register, locks the verification and prints the exceptions.
+    - **Print Exceptions** gives four lists: not found, found elsewhere, poor or unserviceable for the board of
+      survey, and not in the register ([sample](../docs/images/asset-verification-exceptions.png)).
 - **Audit Query Register** window: reference, title, raised by (external or internal audit, board, KRA),
   financial year, risk, finding, recommendation, responsible person, due date, management response, status.
   **Close Audit Query** needs the management response, at least one evidence file attached, and a closer who
@@ -245,6 +266,18 @@ Verified on 10 November 2026 in iDempiere 13 (GardenWorld), through the web UI:
     (127,500.00)). Version 2 generated.
   - GardenAdmin's approval was refused (generated it). SuperUser approved; every page carries the approval stamp, and
     the Generate button is then disabled.
+- Asset tags and verification, 10 November 2026 (8 test assets in 3 locations, prefix GW-):
+  - Assign Asset Tags gave GW-000001-8 to GW-000008-3. The label sheet was printed, and all 8 QR codes decoded to the
+    right tags with ZXing's reader from a 300 dpi image.
+  - Verification "Block A, November 2026 (test)": Load Assets gave 4 assets and the sheet printed.
+  - Results entered: found; found elsewhere (Boardroom); not found (with the search done); found in poor condition;
+    plus an asset not in the register.
+  - Completion was refused for all 4 assets (the verifier GardenUser is their custodian) and for the mistyped tag
+    GW-000123-1. The refusal first said "you are the custodian" while GardenAdmin was completing; it now names the
+    person verifying.
+  - With SuperUser as verifier and the tag corrected to GW-000123-0, it completed: 2 found, 1 moved (the projector is
+    now in the Boardroom in the register), 1 not found (register unchanged), 1 not in the register, 1 for the board
+    of survey. Condition and date were recorded on the assets.
 - Not yet exercised in the UI: blacklisted supplier, supplier payments (gate and budget), LPO completion under
   the gate, requisitions and supplier invoices not from an LPO under the budget check (same code paths, covered
   by the rule tests).
@@ -270,7 +303,8 @@ with its own GL accounts, a statement rule, a test loader format, receipts and a
 `testdata/garden-world-mpesa-statement.csv` with the Import File Loader) and
 `testdata/garden-world-opening-balances.sql` (clearing account and charge, a KCB test account, an opening balance
 record; attach `testdata/opening-trial-balance.csv` and `testdata/opening-sub-ledgers.csv`) and `testdata/garden-world-board-pack.sql` (business-unit dimension, journals by unit,
-a board pack record; restart the server after loading).
+a board pack record; restart the server after loading) and `testdata/garden-world-assets.sql` (tag settings, three
+locations, eight untagged assets, a verification of Block A).
 
 ## Notes for developers
 

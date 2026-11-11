@@ -20,15 +20,15 @@ Legend: **iDempiere** = standard feature, needs configuration and testing only. 
 | M-Pesa and bank statement import, matching and reconciliation | Import: iDempiere Import File Loader + Import Bank Statement, one loader format per bank or M-Pesa export (data). ZenithCore: Match Statement, statement matching rules, transaction reference on payments with duplicate check, completion check, Bank Reconciliation Statement | Built, verified (test layout); real loader formats wait for sample exports (CRIT-02) |
 | Opening-balance clean-up workbench | ZenithCore: Opening Balances window (trial balance and sub-ledger CSV templates, mapping to the new chart, adjustments with reasons, audited figures, control accounts against sub-ledgers), reconciliation PDF, sign-off by a second person, posting of opening invoices, bank statements and journal through a clearing account | Built, verified; stock and assets are reconciled here and loaded with iDempiere's imports |
 | Board pack generator, business-unit accounts | Business units: iDempiere accounting dimension User List 1 (configuration). ZenithCore: Board Packs window (generate from the ledger, budgets, open items, bank accounts and audit queries; versions attached; approval by a second person stamps the reviewed version), business unit required on income and expenditure (ZC_BUSINESS_UNIT_REQUIRED) | Built, verified |
+| Fixed asset tags and printed verification sheets | iDempiere fixed assets (register, depreciation). ZenithCore: tag numbers with a check digit, QR labels (24 per A4 sheet), asset locations and custodians, Asset Verification window (field sheets by location, results, independence of the verifier, exceptions for the board of survey, register updated) | Built, verified |
 | VAT and withholding tax | VAT: iDempiere taxes (configure 16%, zero-rated, exempt). Withholding income tax and withholding VAT: ZenithCore dated rates, deduction lines on supplier invoices, register | Built, verified (resident professional fees, WHVAT); iTax layouts wait on CRIT-02 |
 
 ## Remaining Phase 1 work, in build order
 
 | # | Item | How | Notes |
 | --- | --- | --- | --- |
-| 1 | Fixed asset tags and printed verification sheets | iDempiere assets + ZenithCore labels and sheets | |
-| 2 | Kenyan chart of accounts and setup template (2Pack) | ZenithCore data | Loaded per institution |
-| 3 | Expiry, slow-moving and wastage reports; batch, serial, expiry, QR labels | iDempiere + ZenithCore reports | |
+| 1 | Kenyan chart of accounts and setup template (2Pack) | ZenithCore data | Loaded per institution |
+| 2 | Expiry, slow-moving and wastage reports; batch, serial, expiry, QR labels | iDempiere + ZenithCore reports | |
 
 ## Standard iDempiere, configuration only
 
