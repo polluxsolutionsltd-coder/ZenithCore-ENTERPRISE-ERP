@@ -82,6 +82,19 @@ Invalid) and the user sees every reason at once. Reversals are not checked.
     PDF. It shows book quantities, so it is for custodians and Finance, not counters. Sample:
     [docs/images/count-variance-report.png](../docs/images/count-variance-report.png).
   - Counters should have the Blind Stock Count window only, not Physical Inventory (which shows book quantities).
+- **Goods received inspection** (client setting `ZC_GRN_INSPECTION` = Y).
+  - Each locator has a **Locator use**: normal, quarantine or rejected (Warehouse window, Locator tab). Every
+    stocked line of a supplier goods received note must go to a quarantine locator.
+  - Stock in quarantine or rejected locators cannot be shipped to customers, used internally or moved by an ordinary
+    movement. Only the put-away movement of an inspection moves it.
+  - **Goods Inspection** window: pick a completed goods received note, **Load Receipt Lines**, then enter accepted
+    and rejected quantities and a reason for every rejection (damaged, not to specification, expired, short or
+    excess, other). **Complete Inspection** needs accepted + rejected = received on every line, and an inspector
+    who neither recorded the goods received note nor is a custodian of the store. It creates a draft put-away
+    movement (accepted to the store's default locator, rejected to its rejected locator) for the custodian to
+    complete, and locks the inspection. Screenshot: [docs/images/goods-inspection.png](../docs/images/goods-inspection.png).
+  - With the setting on, the three-way match counts accepted quantities from completed inspections, not received
+    quantities, so a supplier is paid only for what was accepted. Return rejected stock with an iDempiere vendor return.
 - **Audit Query Register** window: reference, title, raised by (external or internal audit, board, KRA),
   financial year, risk, finding, recommendation, responsible person, due date, management response, status.
   **Close Audit Query** needs the management response, at least one evidence file attached, and a closer who
@@ -124,6 +137,14 @@ Verified on 10 November 2026 in iDempiere 13 (GardenWorld), through the web UI:
   uncounted, then accepted with Azalea Bush 6: book quantities 19, 15, 5, 10 taken at submission. Posting ZC-T17,
   never submitted, was refused. With reasons given, GardenAdmin posted ZC-T16. The variance report for November
   showed the differences at cost by store and cause (net -222.63, including the earlier ZC-T13).
+- Goods inspection, 10 November 2026 (HQ Warehouse with HQ Quarantine and HQ Rejected locators): receipt ZC-T18
+  into the normal locator was refused ("must be received into a quarantine location"). LPO ZC-T20 (10 Holly Bush
+  from Patio Fun at 18.00) and its receipt ZC-T19 into quarantine were completed by GardenUser (custodian). Invoice
+  ZC-T21 for 10 was refused ("10 invoiced but only 0 received"), and internal use ZC-T22 from quarantine was
+  refused ("not yet inspected"). Inspection ZC-I1 loaded the line; with 8 accepted and 2 rejected and no reason,
+  completion was refused; with reason Damaged, GardenAdmin (who recorded the receipt) was refused; SuperUser
+  completed it, creating put-away movement 10000000 (8 to Default HQ Locator, 2 to HQ Rejected), which GardenUser
+  completed. ZC-T21 for 10 was then refused ("only 8 received") and completed for 8.
 - Not yet exercised in the UI: blacklisted supplier, supplier payments (gate and budget), LPO completion under
   the gate, requisitions and supplier invoices not from an LPO under the budget check (same code paths, covered
   by the rule tests).
@@ -142,7 +163,9 @@ SQL by hand). On GardenWorld only: `migration/postgresql/demo-garden-world-acces
 `testdata/garden-world-budget.sql` (cost centres, a budget to approve, draft LPOs and an invoice) and
 `testdata/garden-world-withholding.sql` (payable charges, types and rates, an LSO and its invoice) and
 `testdata/garden-world-stores.sql` (custodian, reasons, three counts and a receipt) and
-`testdata/garden-world-blind-count.sql` (blind counting on, two count sheets).
+`testdata/garden-world-blind-count.sql` (blind counting on, two count sheets) and
+`testdata/garden-world-inspection.sql` (inspection on, quarantine and rejected locators, an LPO, two receipts, an
+invoice, an internal use and an inspection).
 
 ## Notes for developers
 

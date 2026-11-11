@@ -14,6 +14,8 @@ import org.compiere.model.MDocType;
 import org.compiere.model.MInvoice;
 import org.compiere.model.MInvoiceLine;
 import org.compiere.model.MCost;
+import org.compiere.model.MInOut;
+import org.compiere.model.MInOutLine;
 import org.compiere.model.MInventory;
 import org.compiere.model.MInventoryLine;
 import org.compiere.model.MLocator;
@@ -38,6 +40,7 @@ import org.osgi.service.event.Event;
 import ke.co.pollux.zenithcore.controls.BlindCount;
 import ke.co.pollux.zenithcore.controls.BudgetCheck;
 import ke.co.pollux.zenithcore.controls.ControlResult;
+import ke.co.pollux.zenithcore.controls.GoodsInspection;
 import ke.co.pollux.zenithcore.controls.SecondPersonApproval;
 import ke.co.pollux.zenithcore.controls.StoresControl;
 import ke.co.pollux.zenithcore.controls.SupplierGate;
@@ -189,7 +192,15 @@ public class ControlsEventHandler extends AbstractEventHandler {
             results.addAll(storesChecks(po, label, base, dt));
         }
 
-        // 5. Budget check
+        // 5. Goods inspection and quarantine
+        if (MSysConfig.getBooleanValue("ZC_GRN_INSPECTION", false, clientId)) {
+            ControlResult r = inspectionCheck(po, dt);
+            if (r != null) {
+                results.add(r);
+            }
+        }
+
+        // 6. Budget check
         boolean budgetDoc = "M_Requisition".equals(table) || ("C_Order".equals(table) && !po.get_ValueAsBoolean("IsSOTrx"))
                 || ("C_Invoice".equals(table) && MDocType.DOCBASETYPE_APInvoice.equals(base))
                 || ("C_Payment".equals(table) && !po.get_ValueAsBoolean("IsReceipt") && po.get_ValueAsInt("C_Charge_ID") > 0
@@ -257,6 +268,55 @@ public class ControlsEventHandler extends AbstractEventHandler {
             }
         }
         return out;
+    }
+
+    /** Receipts into quarantine; no issue, movement or use of quarantined or rejected stock. */
+    private static ControlResult inspectionCheck(PO po, MDocType dt) {
+        List<GoodsInspection.StockLine> lines = new ArrayList<>();
+        switch (po.get_TableName()) {
+            case "M_InOut" -> {
+                MInOut io = (MInOut) po;
+                String type = io.getMovementType();
+                boolean receipt = MInOut.MOVEMENTTYPE_VendorReceipts.equals(type);
+                boolean shipment = MInOut.MOVEMENTTYPE_CustomerShipment.equals(type);
+                if (!receipt && !shipment) {
+                    return null; // returns to suppliers and from customers
+                }
+                for (MInOutLine l : io.getLines(true)) {
+                    if (l.getM_Product_ID() > 0 && MProduct.get(l.getM_Product_ID()).isStocked()) {
+                        lines.add(stockLine(l.getLine(), l.getM_Product_ID(), l.getM_Locator_ID()));
+                    }
+                }
+                return receipt ? GoodsInspection.receive(lines) : GoodsInspection.use(lines, "issued");
+            }
+            case "M_Movement" -> {
+                if (po.get_ValueAsInt("ZC_Inspection_ID") > 0) {
+                    return null; // put-away after inspection
+                }
+                for (MMovementLine l : ((MMovement) po).getLines(true)) {
+                    lines.add(stockLine(l.getLine(), l.getM_Product_ID(), l.getM_Locator_ID()));
+                }
+                return GoodsInspection.use(lines, "moved");
+            }
+            case "M_Inventory" -> {
+                if (dt == null || !MDocType.DOCSUBTYPEINV_InternalUseInventory.equals(dt.getDocSubTypeInv())) {
+                    return null;
+                }
+                for (MInventoryLine l : ((MInventory) po).getLines(true)) {
+                    lines.add(stockLine(l.getLine(), l.getM_Product_ID(), l.getM_Locator_ID()));
+                }
+                return GoodsInspection.use(lines, "used");
+            }
+            default -> {
+                return null;
+            }
+        }
+    }
+
+    private static GoodsInspection.StockLine stockLine(int line, int productId, int locatorId) {
+        MLocator loc = MLocator.get(locatorId);
+        return new GoodsInspection.StockLine(line, MProduct.get(productId).getName(), loc.getValue(),
+                GoodsInspection.LocationUse.of(loc.get_ValueAsString("ZC_LocatorUse")));
     }
 
     private static StoresControl.Store store(int warehouseId, String trx) {
@@ -371,8 +431,12 @@ public class ControlsEventHandler extends AbstractEventHandler {
             boolean stocked = il.getM_Product_ID() > 0 && MProduct.get(il.getM_Product_ID()).isStocked();
             BigDecimal received = BigDecimal.ZERO, before = BigDecimal.ZERO, orderPrice = BigDecimal.ZERO;
             if (ol > 0) {
-                received = nz(DB.getSQLValueBDEx(invoice.get_TrxName(),
-                        "SELECT SUM(l.MovementQty) FROM M_InOutLine l JOIN M_InOut io ON io.M_InOut_ID=l.M_InOut_ID "
+                boolean inspected = stocked && MSysConfig.getBooleanValue("ZC_GRN_INSPECTION", false, invoice.getAD_Client_ID());
+                received = nz(DB.getSQLValueBDEx(invoice.get_TrxName(), inspected
+                        // only what an inspection accepted counts as received
+                        ? "SELECT SUM(il.ZC_QtyAccepted) FROM ZC_InspectionLine il JOIN ZC_Inspection i ON i.ZC_Inspection_ID=il.ZC_Inspection_ID "
+                                + "JOIN M_InOutLine l ON l.M_InOutLine_ID=il.M_InOutLine_ID WHERE l.C_OrderLine_ID=? AND i.Processed='Y'"
+                        : "SELECT SUM(l.MovementQty) FROM M_InOutLine l JOIN M_InOut io ON io.M_InOut_ID=l.M_InOut_ID "
                                 + "WHERE l.C_OrderLine_ID=? AND io.DocStatus IN ('CO','CL')", ol));
                 before = nz(DB.getSQLValueBDEx(invoice.get_TrxName(),
                         "SELECT SUM(l.QtyInvoiced) FROM C_InvoiceLine l JOIN C_Invoice i ON i.C_Invoice_ID=l.C_Invoice_ID "
