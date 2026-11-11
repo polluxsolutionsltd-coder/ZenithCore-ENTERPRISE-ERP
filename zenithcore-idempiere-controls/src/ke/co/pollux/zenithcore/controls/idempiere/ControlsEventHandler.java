@@ -10,6 +10,8 @@ import java.util.Map;
 import org.adempiere.base.event.AbstractEventHandler;
 import org.adempiere.base.event.IEventTopics;
 import org.compiere.model.MBPartner;
+import org.compiere.model.MBankStatement;
+import org.compiere.model.MBankStatementLine;
 import org.compiere.model.MDocType;
 import org.compiere.model.MInvoice;
 import org.compiere.model.MInvoiceLine;
@@ -38,6 +40,7 @@ import org.compiere.util.Env;
 import org.osgi.service.event.Event;
 
 import ke.co.pollux.zenithcore.controls.BlindCount;
+import ke.co.pollux.zenithcore.controls.BankMatch;
 import ke.co.pollux.zenithcore.controls.BudgetCheck;
 import ke.co.pollux.zenithcore.controls.ControlResult;
 import ke.co.pollux.zenithcore.controls.GoodsInspection;
@@ -200,7 +203,25 @@ public class ControlsEventHandler extends AbstractEventHandler {
             }
         }
 
-        // 6. Budget check
+        // 6. Bank and M-Pesa statements: every transaction matched
+        if ("C_BankStatement".equals(table) && MSysConfig.getBooleanValue("ZC_BANK_MATCHING", false, clientId)) {
+            List<BankMatch.LineState> lines = new ArrayList<>();
+            for (MBankStatementLine l : ((MBankStatement) po).getLines(true)) {
+                lines.add(new BankMatch.LineState(l.getLine(), l.getTrxAmt(),
+                        l.getC_Payment_ID() > 0 || l.getC_DepositBatch_ID() > 0,
+                        l.getEftTrxID() != null && !l.getEftTrxID().isBlank() ? l.getEftTrxID() : l.getReferenceNo()));
+            }
+            results.add(BankMatch.complete(lines));
+        }
+        if ("C_Payment".equals(table) && MSysConfig.getBooleanValue("ZC_BANK_MATCHING", false, clientId)) {
+            String ref = po.get_ValueAsString("ZC_TrxReference");
+            String other = ref.isBlank() ? null : DB.getSQLValueStringEx(po.get_TrxName(), "SELECT MIN(DocumentNo) FROM C_Payment "
+                    + "WHERE C_BankAccount_ID=? AND C_Payment_ID<>? AND DocStatus IN ('CO','CL') "
+                    + "AND UPPER(ZC_TrxReference)=UPPER(?)", po.get_ValueAsInt("C_BankAccount_ID"), po.get_ID(), ref.trim());
+            results.add(BankMatch.uniqueReference(label, ref.trim(), other));
+        }
+
+        // 7. Budget check
         boolean budgetDoc = "M_Requisition".equals(table) || ("C_Order".equals(table) && !po.get_ValueAsBoolean("IsSOTrx"))
                 || ("C_Invoice".equals(table) && MDocType.DOCBASETYPE_APInvoice.equals(base))
                 || ("C_Payment".equals(table) && !po.get_ValueAsBoolean("IsReceipt") && po.get_ValueAsInt("C_Charge_ID") > 0

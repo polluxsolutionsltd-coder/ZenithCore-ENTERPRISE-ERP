@@ -48,6 +48,7 @@ When the documents arrive, add them under `docs/etims/` and start the work below
 - [ ] NITA levy return format
 - [ ] HELB employer remittance schedule
 - [ ] Bulk salary payment file specification from JKUAT IP's bank (and each future client's bank)
+- [ ] Sample statement exports (CSV or Excel, a few real but anonymised lines) of JKUAT IP's M-Pesa paybill or till and each bank account, to set up the Import Loader Format for each (statement matching is built; only the formats are missing). Needed for Finance go-live (week 26)
 
 **Work once unblocked.** Hold each layout as dated data (columns, order, formats, validation), the same way statutory rates are held, so a new template version is a data change. Generate each file from the approved payroll lines, test it against the portal's validation or the bank's test environment, and keep the working schedules for reconciliation. Do not build a layout from guesses.
 

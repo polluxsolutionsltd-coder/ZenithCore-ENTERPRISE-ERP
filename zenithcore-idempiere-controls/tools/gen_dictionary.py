@@ -40,7 +40,7 @@ def uu(kind, key):
 
 CORE_ELEMENTS = {"Value", "Name", "Description", "Processed", "DocBaseType", "C_Year_ID", "C_Activity_ID", "Account_ID",
                  "C_Charge_ID", "ValidFrom", "ValidTo", "C_Period_ID", "M_InOut_ID", "M_InOutLine_ID", "M_Product_ID",
-                 "M_Movement_ID"}
+                 "M_Movement_ID", "C_BankAccount_ID"}
 ACCOUNT_REF_VALUE = 362  # C_ElementValue (trx): posting accounts only
 NUMBER = 22
 QUANTITY = 29
@@ -50,6 +50,7 @@ REF_PREQUAL, REF_AQ_STATUS, REF_AQ_SOURCE, REF_RISK = 1091500, 1091501, 1091502,
 REF_WHT_KIND = 1091504
 REF_COUNT_STATUS = 1091505
 REF_LOCATOR_USE, REF_INSPECTION_STATUS, REF_REJECT_REASON = 1091506, 1091507, 1091508
+REF_STATEMENT_MATCH = 1091509
 REFERENCES = [
     (REF_PREQUAL, "ZC Pre-qualification Status", [("P", "Pending"), ("Q", "Pre-qualified"), ("S", "Suspended"),
                                                  ("B", "Blacklisted")]),
@@ -64,6 +65,9 @@ REFERENCES = [
     (REF_REJECT_REASON, "ZC Reject Reason", [("DMG", "Damaged"), ("SPC", "Not to specification"),
                                              ("EXP", "Expired or short shelf life"), ("QTY", "Excess delivery"),
                                              ("OTH", "Other")]),
+    (REF_STATEMENT_MATCH, "ZC Statement Match", [("REF", "Matched by reference"), ("CHG", "Charge by rule"),
+                                                 ("AMT", "Matched by amount and date"), ("NEW", "New receipt created"),
+                                                 ("REV", "To review"), ("NON", "Not matched")]),
 ]
 
 # --- processes -------------------------------------------------------------------------------------
@@ -72,6 +76,7 @@ PROC_BUDGET_APPROVE, PROC_BUDGET_STATUS = 1091501, 1091502
 PROC_WHT_REGISTER = 1091503
 PROC_COUNT_SUBMIT, PROC_COUNT_VARIANCE = 1091504, 1091505
 PROC_INSPECTION_LOAD, PROC_INSPECTION_COMPLETE = 1091506, 1091507
+PROC_MATCH_STATEMENT, PROC_BANK_REC = 1091508, 1091509
 PROCESSES = [
     (PROC_CLOSE_AQ, "ZC_AuditQueryClose", "Close Audit Query",
      "Closes an audit query once the management response and evidence are recorded. The person responsible for "
@@ -103,6 +108,14 @@ PROCESSES = [
      "Records the accepted and rejected quantities and creates the stock movement that puts accepted goods away and "
      "moves rejected goods to the rejected location. The store keeper completes the movement.",
      "ke.co.pollux.zenithcore.controls.idempiere.process.InspectionComplete"),
+    (PROC_MATCH_STATEMENT, "ZC_MatchStatement", "Match Statement",
+     "Matches unmatched statement lines to payments by reference, to charges by rule, then by amount and date, and "
+     "can record receipts for customers named in the account reference. Other lines are marked with the reason.",
+     "ke.co.pollux.zenithcore.controls.idempiere.process.MatchStatement"),
+    (PROC_BANK_REC, "ZC_BankReconciliation", "Bank Reconciliation Statement",
+     "Balance per bank statement, payments not yet presented, receipts not yet credited and balance per cash book "
+     "for a bank or M-Pesa account at a date. PDF.",
+     "ke.co.pollux.zenithcore.controls.idempiere.process.BankReconciliationReport"),
 ]
 
 PROCESS_PARAMS = [  # (id, process, column, name, reference, mandatory, seq, default)
@@ -112,6 +125,8 @@ PROCESS_PARAMS = [  # (id, process, column, name, reference, mandatory, seq, def
     (1091503, PROC_COUNT_VARIANCE, "DateFrom", "Counts from", DATE, True, 10, None),
     (1091504, PROC_COUNT_VARIANCE, "DateTo", "Counts to", DATE, True, 20, "@#Date@"),
     (1091505, PROC_COUNT_VARIANCE, "M_Warehouse_ID", "Store", TABLEDIR, False, 30, None),
+    (1091506, PROC_BANK_REC, "C_BankAccount_ID", "Bank or M-Pesa account", TABLEDIR, True, 10, None),
+    (1091507, PROC_BANK_REC, "DateTo", "As at", DATE, True, 20, "@#Date@"),
 ]
 
 # --- client switches -------------------------------------------------------------------------------
@@ -142,6 +157,14 @@ SYSCONFIG = [  # (id, name, system default, description); each client sets its o
     (1091511, "ZC_GRN_INSPECTION", "N",
      "Y: stock items are received into quarantine, inspected by someone other than the receiver and custodians, and "
      "cannot be used or invoiced until accepted"),
+    (1091512, "ZC_BANK_MATCHING", "N",
+     "Y: a bank or M-Pesa statement cannot be completed while any line with a transaction amount is not matched to a "
+     "payment or receipt"),
+    (1091513, "ZC_BANK_MATCH_DAYS", "3",
+     "Days either side of the statement date within which Match Statement matches a payment by amount"),
+    (1091514, "ZC_BANK_CREATE_RECEIPTS", "N",
+     "Y: Match Statement records and completes receipts for money in whose account reference is an open invoice "
+     "number or a customer code"),
 ]
 
 # --- new tables ------------------------------------------------------------------------------------
@@ -279,6 +302,16 @@ TABLES = [
         dict(col="Processed", name="Processed", ref=YESNO, ddl="CHAR(1) DEFAULT 'N' NOT NULL", default="N",
              readonly=True, hidden=True),
     ]),
+    dict(id=1091509, table="ZC_StatementRule", name="Statement Matching Rule", window=1091508, cols=[
+        dict(col="Name", name="Name", ref=STRING, ddl="VARCHAR(60) NOT NULL", length=60, mandatory=True, identifier=1),
+        dict(col="ZC_MatchText", name="Text in description", ref=STRING, ddl="VARCHAR(60) NOT NULL", length=60,
+             mandatory=True, help="Statement lines whose description or payer contains this text (any case) go to the "
+                                  "charge, for example Pay Bill Charge or Ledger fee."),
+        dict(col="C_Charge_ID", name="Charge", ref=TABLEDIR, ddl="NUMERIC(10) NOT NULL", mandatory=True, fk="C_Charge"),
+        dict(col="C_BankAccount_ID", name="Bank or M-Pesa account", ref=TABLEDIR, ddl="NUMERIC(10)", fk="C_BankAccount",
+             help="Leave empty for all accounts."),
+        dict(col="Description", name="Description", ref=STRING, ddl="VARCHAR(255)", length=255),
+    ]),
 ]
 
 # --- columns added to iDempiere tables ----------------------------------------------------------------
@@ -331,6 +364,15 @@ EXTENSIONS = [  # (table, column spec)
                        help="Quarantine: goods awaiting inspection. Rejected: goods to return to the supplier.")),
     ("M_Movement", dict(col="ZC_Inspection_ID", name="Goods inspection", ref=TABLEDIR, ddl="NUMERIC(10)",
                         readonly=True, help="Inspection that created this put-away movement.")),
+    ("C_BankStatement", dict(col="ZC_MatchStatement", name="Match Statement", ref=BUTTON, ddl="CHAR(1)", length=1,
+                             process=PROC_MATCH_STATEMENT)),
+    ("C_BankStatementLine", dict(col="ZC_MatchType", name="Matched", ref=LIST, refvalue=REF_STATEMENT_MATCH,
+                                 ddl="CHAR(3)", length=3, readonly=True, help="How Match Statement matched this line.")),
+    ("C_BankStatementLine", dict(col="ZC_MatchNote", name="Match note", ref=STRING, ddl="VARCHAR(255)", length=255,
+                                 readonly=True, help="Why the line was matched, or what the cashier must check.")),
+    ("C_Payment", dict(col="ZC_TrxReference", name="Transaction reference", ref=STRING, ddl="VARCHAR(40)", length=40,
+                       help="M-Pesa receipt code, EFT or RTGS reference as it appears on the statement. Used to match "
+                            "statement lines; the same reference cannot be receipted twice on one account.")),
 ]
 EXTENSION_FIELDS = [  # (field id, tab id, table, column, seq): editable fields on iDempiere tabs
     (1091954, 641, "M_Requisition", "C_Activity_ID", 75),
@@ -344,6 +386,10 @@ EXTENSION_FIELDS = [  # (field id, tab id, table, column, seq): editable fields 
     (1091962, 256, "M_InventoryLine", "ZC_AdjustmentReason_ID", 115),
     (1091963, 683, "M_InventoryLine", "ZC_AdjustmentReason_ID", 115),
     (1091964, 178, "M_Locator", "ZC_LocatorUse", 115),
+    (1091965, 328, "C_BankStatement", "ZC_MatchStatement", 235),
+    (1091966, 329, "C_BankStatementLine", "ZC_MatchType", 25),
+    (1091967, 329, "C_BankStatementLine", "ZC_MatchNote", 26),
+    (1091968, 330, "C_Payment", "ZC_TrxReference", 95),
 ]
 
 # Supplier pre-qualification window: a tab on C_BPartner limited to vendors
@@ -381,6 +427,8 @@ MENUS = [  # (id, name, action, window or process, seq)
     (1091509, "Blind Stock Count", "W", 1091506, 90),
     (1091510, "Stock Count Variance Report", "P", PROC_COUNT_VARIANCE, 100),
     (1091511, "Goods Inspection", "W", 1091507, 110),
+    (1091512, "Statement Matching Rules", "W", 1091508, 120),
+    (1091513, "Bank Reconciliation Statement", "P", PROC_BANK_REC, 130),
 ]
 
 # Windows over iDempiere tables with chosen fields: (column, read-only, hidden)
@@ -423,6 +471,9 @@ MULTI_WINDOWS = [
          tabs=[dict(id=1091510, table=1091507, name="Inspection", level=0, seq=10, field_base=1091860),
                dict(id=1091511, table=1091508, name="Lines", level=1, seq=20, field_base=1091880,
                     link="ZC_Inspection_ID")]),
+    dict(id=1091508, name="Statement Matching Rules", wtype="M",
+         desc="Texts in bank and M-Pesa statement lines that mean a bank charge, tariff or interest, and their charges",
+         tabs=[dict(id=1091512, table=1091509, name="Rule", level=0, seq=10, field_base=1091900)]),
 ]
 
 # validation rules

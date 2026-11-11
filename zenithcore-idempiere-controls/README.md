@@ -95,6 +95,29 @@ Invalid) and the user sees every reason at once. Reversals are not checked.
     complete, and locks the inspection. Screenshot: [docs/images/goods-inspection.png](../docs/images/goods-inspection.png).
   - With the setting on, the three-way match counts accepted quantities from completed inspections, not received
     quantities, so a supplier is paid only for what was accepted. Return rejected stock with an iDempiere vendor return.
+- **M-Pesa and bank statements** (client settings `ZC_BANK_MATCHING`, `ZC_BANK_MATCH_DAYS`, `ZC_BANK_CREATE_RECEIPTS`).
+  - Each M-Pesa paybill or till and each bank account is an iDempiere bank account (bank marked own bank) with its
+    own bank asset and in-transit GL accounts.
+  - Import: iDempiere **Import File Loader** with one **Import Loader Format** per bank or M-Pesa export, then
+    **Import Bank Statement**. The format is data: map the transaction reference (M-Pesa receipt code) to EFT Trx ID,
+    the account number the payer typed to EFT Reference, the payer to EFT Payee, the narrative to Line Description,
+    and the amount to both Statement Amount and Transaction Amount. Real formats wait for sample exports (CRIT-02);
+    GardenWorld has a test layout only. The import refuses a transaction ID it has already imported.
+  - Payments and receipts have a **Transaction reference** (M-Pesa code, EFT or RTGS reference; iDempiere's Check No
+    holds digits only). With matching on, the same reference cannot be completed twice on one account.
+  - **Match Statement** (button on Bank Statement) works on lines without a payment or charge, in passes: same
+    reference and amount; **Statement Matching Rules** (text in the narrative, for example Pay Bill Charge, to a
+    charge); the only payment with the same amount within the window (narrowed to the customer named in the account
+    reference); then, with `ZC_BANK_CREATE_RECEIPTS` = Y, a completed receipt for money in whose account reference is
+    an open invoice number (up to its open amount) or a customer code (on account). Each line records how it matched
+    and why (Matched, Match note), and lines for review say what to check. Screenshot:
+    [docs/images/statement-matching.png](../docs/images/statement-matching.png).
+  - A statement cannot be completed while any line with a transaction amount has no payment (`ZC_BANK_MATCHING` = Y).
+    Unidentified money in is set to a suspense charge by the cashier.
+  - **Bank Reconciliation Statement** (menu): balance per last completed statement, less payments not yet presented,
+    plus receipts not yet credited, against the cash book (GL balance of the account's asset and in-transit
+    accounts), with the unexplained difference and signature blocks. Warns if the GL accounts are shared with another
+    bank account or documents are unposted. Sample: [docs/images/bank-reconciliation.png](../docs/images/bank-reconciliation.png).
 - **Audit Query Register** window: reference, title, raised by (external or internal audit, board, KRA),
   financial year, risk, finding, recommendation, responsible person, due date, management response, status.
   **Close Audit Query** needs the management response, at least one evidence file attached, and a closer who
@@ -145,6 +168,16 @@ Verified on 10 November 2026 in iDempiere 13 (GardenWorld), through the web UI:
   completion was refused; with reason Damaged, GardenAdmin (who recorded the receipt) was refused; SuperUser
   completed it, creating put-away movement 10000000 (8 to Default HQ Locator, 2 to HQ Rejected), which GardenUser
   completed. ZC-T21 for 10 was then refused ("only 8 received") and completed for 8.
+- Bank matching, 10 November 2026 (M-Pesa paybill test account with its own GL accounts): receipts ZC-R1 (1,500.00,
+  QK12ABC3DE), ZC-R2 (2,000.00, no reference), ZC-R3 (700.00) and payment ZC-P1 (12,000.00) completed. A six-line test
+  CSV was loaded with the Import File Loader and imported as statement ZC-S1. Completing it was refused (line 10 not
+  matched). Match Statement: line 10 by reference to ZC-R1, line 20 (Pay Bill Charge, -33.00) to Bank Charge by rule,
+  line 30 by amount and date to ZC-R2, line 40 (account 200002) a receipt of 100.00 against invoice 200002 (open
+  161.12), line 50 (account joeblock) a receipt of 3,000.00 on Joe Block's account, line 60 (account XYZ123) not
+  matched. Completion was refused for line 60; with line 60 set to the unidentified-receipts charge it completed.
+  Receipt ZC-R4 repeating QK12ABC3DE in lower case was refused. Bank Reconciliation Statement at 10 Nov: bank
+  7,017.00, unpresented 12,000.00 (ZC-P1), uncredited 700.00 (ZC-R3), adjusted -4,283.00, cash book -4,283.00,
+  reconciled. For bank account 1234 it warned that the GL accounts are shared.
 - Not yet exercised in the UI: blacklisted supplier, supplier payments (gate and budget), LPO completion under
   the gate, requisitions and supplier invoices not from an LPO under the budget check (same code paths, covered
   by the rule tests).
@@ -165,7 +198,9 @@ SQL by hand). On GardenWorld only: `migration/postgresql/demo-garden-world-acces
 `testdata/garden-world-stores.sql` (custodian, reasons, three counts and a receipt) and
 `testdata/garden-world-blind-count.sql` (blind counting on, two count sheets) and
 `testdata/garden-world-inspection.sql` (inspection on, quarantine and rejected locators, an LPO, two receipts, an
-invoice, an internal use and an inspection).
+invoice, an internal use and an inspection) and `testdata/garden-world-bank.sql` (matching on, an M-Pesa test account
+with its own GL accounts, a statement rule, a test loader format, receipts and a payment; load
+`testdata/garden-world-mpesa-statement.csv` with the Import File Loader).
 
 ## Notes for developers
 
