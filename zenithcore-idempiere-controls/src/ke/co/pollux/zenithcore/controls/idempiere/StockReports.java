@@ -1,6 +1,7 @@
 package ke.co.pollux.zenithcore.controls.idempiere;
 
-import java.awt.Color;
+import static ke.co.pollux.zenithcore.controls.idempiere.ReportPdf.*;
+
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
@@ -19,12 +20,8 @@ import com.lowagie.text.Element;
 import com.lowagie.text.Font;
 import com.lowagie.text.PageSize;
 import com.lowagie.text.Paragraph;
-import com.lowagie.text.Phrase;
-import com.lowagie.text.Rectangle;
-import com.lowagie.text.pdf.ColumnText;
 import com.lowagie.text.pdf.PdfPCell;
 import com.lowagie.text.pdf.PdfPTable;
-import com.lowagie.text.pdf.PdfPageEventHelper;
 import com.lowagie.text.pdf.PdfWriter;
 
 import ke.co.pollux.zenithcore.controls.StockAnalysis;
@@ -45,21 +42,6 @@ import ke.co.pollux.zenithcore.controls.StockAnalysis.Wastage;
  */
 public final class StockReports {
 
-    private static final Color NAVY = new Color(0x00, 0x38, 0x7F);
-    private static final Color CYAN = new Color(0x00, 0xB8, 0xF0);
-    private static final Color SHADE = new Color(0xEE, 0xF4, 0xFA);
-    private static final Color RED = new Color(0xB0, 0x1E, 0x1E);
-    private static final Color AMBER = new Color(0xB3, 0x6B, 0x00);
-    private static final Font TITLE = new Font(Font.HELVETICA, 14, Font.BOLD, Color.WHITE);
-    private static final Font SUB = new Font(Font.HELVETICA, 8.5f, Font.NORMAL, Color.WHITE);
-    private static final Font H = new Font(Font.HELVETICA, 10, Font.BOLD, NAVY);
-    private static final Font TH = new Font(Font.HELVETICA, 7, Font.BOLD, NAVY);
-    private static final Font TD = new Font(Font.HELVETICA, 7.5f, Font.NORMAL, Color.BLACK);
-    private static final Font TDB = new Font(Font.HELVETICA, 7.5f, Font.BOLD, Color.BLACK);
-    private static final Font TDR = new Font(Font.HELVETICA, 7.5f, Font.BOLD, RED);
-    private static final Font TDA = new Font(Font.HELVETICA, 7.5f, Font.BOLD, AMBER);
-    private static final Font NOTE = new Font(Font.HELVETICA, 7, Font.NORMAL, Color.GRAY);
-    private static final Font BIG = new Font(Font.HELVETICA, 11, Font.BOLD, NAVY);
 
     private StockReports() {
     }
@@ -177,6 +159,10 @@ public final class StockReports {
                             rs.getString(5), qty, qty.multiply(price)));
                 }, client, start(from), start(to.plusDays(1)), warehouse, warehouse);
         return out;
+    }
+
+    private static String qty(BigDecimal q) {
+        return q == null ? "" : q.stripTrailingZeros().toPlainString();
     }
 
     public static Policy policy(int client) {
@@ -366,73 +352,4 @@ public final class StockReports {
         doc.add(t);
     }
 
-    // ---------------------------------------------------------------- layout
-
-    private static String qty(BigDecimal q) {
-        return q == null ? "" : q.stripTrailingZeros().toPlainString();
-    }
-
-    private static void band(Document doc, String institution, String title, String sub) throws Exception {
-        PdfPTable band = new PdfPTable(1);
-        band.setWidthPercentage(100);
-        PdfPCell c = new PdfPCell();
-        c.addElement(new Paragraph(institution, SUB));
-        c.addElement(new Paragraph(title, TITLE));
-        c.addElement(new Paragraph(sub, SUB));
-        c.setBackgroundColor(NAVY);
-        c.setBorder(Rectangle.BOTTOM);
-        c.setBorderColor(CYAN);
-        c.setBorderWidthBottom(3);
-        c.setPadding(8);
-        c.setPaddingTop(2);
-        band.addCell(c);
-        doc.add(band);
-    }
-
-    private static void footer(PdfWriter w, String institution, String what) {
-        String text = institution + "  |  " + what + "  |  printed " + LocalDate.now() + "  |  ZenithCore Enterprise ERP";
-        w.setPageEvent(new PdfPageEventHelper() {
-            @Override
-            public void onEndPage(PdfWriter writer, Document document) {
-                ColumnText.showTextAligned(writer.getDirectContent(), Element.ALIGN_LEFT, new Phrase(text, NOTE), document.leftMargin(), 16, 0);
-                ColumnText.showTextAligned(writer.getDirectContent(), Element.ALIGN_RIGHT, new Phrase("Page " + writer.getPageNumber(), NOTE),
-                        document.getPageSize().getWidth() - document.rightMargin(), 16, 0);
-            }
-        });
-    }
-
-    private static PdfPTable table(float[] widths, String... headers) {
-        PdfPTable t = new PdfPTable(widths);
-        t.setWidthPercentage(100);
-        t.setHeaderRows(headers.length == 0 ? 0 : 1);
-        t.setSpacingBefore(4);
-        for (String h : headers) {
-            t.addCell(head(h));
-        }
-        return t;
-    }
-
-    private static PdfPCell head(String h) {
-        PdfPCell c = new PdfPCell(new Phrase(h, TH));
-        c.setBorder(Rectangle.BOTTOM);
-        c.setBorderColor(CYAN);
-        c.setBorderWidthBottom(1.5f);
-        c.setPadding(3);
-        return c;
-    }
-
-    private static PdfPCell cell(String text, Font f) {
-        PdfPCell c = new PdfPCell(new Phrase(text == null ? "" : text, f));
-        c.setBorder(Rectangle.BOTTOM);
-        c.setBorderColor(SHADE);
-        c.setPadding(3);
-        c.setMinimumHeight(14);
-        return c;
-    }
-
-    private static PdfPCell num(String text, Font f) {
-        PdfPCell c = cell(text, f);
-        c.setHorizontalAlignment(Element.ALIGN_RIGHT);
-        return c;
-    }
 }

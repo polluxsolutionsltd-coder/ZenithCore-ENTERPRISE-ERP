@@ -1,0 +1,17 @@
+role_a,role_b,reason
+Store Keeper,Stock Counter,a custodian would count their own store
+Store Keeper,Inspection Committee,the store would accept its own receipts
+Store Keeper,Procurement Officer,the person who orders would also receive the goods
+Store Keeper,Finance Manager,the custodian would approve write-offs of their own stock
+Procurement Officer,Inspection Committee,the buyer would accept the goods they ordered
+Procurement Officer,Finance Officer,the buyer would also post the supplier's invoice and pay it
+Procurement Officer,Finance Manager,the buyer would approve payments to the suppliers they chose
+Cashier,Finance Officer,the person handling cash would also record and reconcile it
+Cashier,Finance Manager,the person handling cash would approve its accounting
+Finance Officer,Finance Manager,"journals, invoices and payments need a preparer and a different approver"
+Finance Officer,Asset Verifier,the keeper of the asset register would verify it
+Finance Officer,Board Pack Approver,the person who prepares the board pack would approve it
+Finance Manager,Board Pack Approver,the person who can generate the board pack would approve it
+Payroll Officer,HR Head,the person who calculates the payroll would approve it
+Payroll Officer,Finance Head,the person who calculates the payroll would post it
+HR Head,Finance Head,the payroll approver would also post it

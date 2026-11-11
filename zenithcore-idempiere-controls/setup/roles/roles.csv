@@ -1,0 +1,10 @@
+role,description,show_accounting,cannot
+Store Keeper,"Custodian of a store: receives, issues, moves and sets aside stock; prepares counts and internal use; stock reports and labels",N,"Count blind; inspect goods; order; approve write-offs; post invoices or payments"
+Stock Counter,"Counts stock blind (no book quantities) and submits counts",N,"See book quantities; receive or issue stock; post counts"
+Inspection Committee,"Inspects goods received: accepts or rejects each line with a reason",N,"Receive or issue stock; order; pay"
+Procurement Officer,"Raises requisitions and LPOs; maintains suppliers and their pre-qualification; checks budgets",N,"Receive or inspect goods; post supplier invoices; pay"
+Cashier,"Records receipts: cash, cheque, M-Pesa and bank transfers",N,"Post invoices or journals; pay suppliers; reconcile the bank"
+Finance Officer,"Prepares journals, supplier and customer invoices and payments; bank statements, matching and reconciliation; budgets, opening balances, asset register and tags; prepares the board pack",Y,"Receive cash; approve own journals and payments (second-person rules); approve budgets, sign off opening balances or approve the board pack"
+Finance Manager,"Approves: completes journals and payments prepared by others, approves budgets, signs off opening balances, closes audit queries, approves write-offs, reverses documents; maintains approval rules and reasons",Y,"Receive cash; order; keep stores; approve the board pack"
+Board Pack Approver,"Reviews and approves the board finance committee pack for release",Y,"Prepare the pack; post or approve transactions"
+Asset Verifier,"Verifies assets in the field and records results for the board of survey",N,"Keep the asset register; tag assets"

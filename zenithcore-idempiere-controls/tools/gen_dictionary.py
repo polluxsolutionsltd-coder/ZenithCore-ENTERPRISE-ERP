@@ -98,6 +98,7 @@ PROC_ASSET_TAGS, PROC_ASSET_LABELS, PROC_AV_LOAD, PROC_AV_SHEETS, PROC_AV_COMPLE
     1091516, 1091517, 1091518, 1091519, 1091520, 1091521)
 PROC_KENYA_SETUP = 1091522
 PROC_EXPIRY, PROC_SLOW, PROC_WASTAGE, PROC_STOCK_LABELS = 1091523, 1091524, 1091525, 1091526
+PROC_ROLES, PROC_ROLE_REPORT = 1091527, 1091528
 PROCESSES = [
     (PROC_CLOSE_AQ, "ZC_AuditQueryClose", "Close Audit Query",
      "Closes an audit query once the management response and evidence are recorded. The person responsible for "
@@ -198,6 +199,13 @@ PROCESSES = [
     (PROC_STOCK_LABELS, "ZC_StockLabels", "Print Stock Labels",
      "Lot labels with product, lot, expiry and a QR code, from a goods received note or the stock on hand. PDF.",
      "ke.co.pollux.zenithcore.controls.idempiere.process.StockLabels"),
+    (PROC_ROLES, "ZC_SetUpPhase1Roles", "Set Up Phase 1 Roles",
+     "Creates or updates the Phase 1 roles (store keeper, counter, inspection, procurement, cashier, finance officer and "
+     "manager, board pack approver, asset verifier) with the access in setup/roles. Safe to run again.",
+     "ke.co.pollux.zenithcore.controls.idempiere.process.Phase1RoleSetup"),
+    (PROC_ROLE_REPORT, "ZC_RoleReport", "Roles and Duties Report",
+     "Each role with its users, what it can and cannot do, and every user who holds roles that should be kept apart. PDF.",
+     "ke.co.pollux.zenithcore.controls.idempiere.process.RoleReport"),
 ]
 
 PROCESS_PARAMS = [  # (id, process, column, name, reference, mandatory, seq, default)
@@ -274,6 +282,8 @@ SYSCONFIG = [  # (id, name, system default, description); each client sets its o
     (1091520, "ZC_SLOW_MOVING_DAYS", "90", "Days without an issue after which stock is reported as slow-moving"),
     (1091521, "ZC_NON_MOVING_DAYS", "365", "Days without an issue after which stock is reported as non-moving"),
     (1091522, "ZC_SLOW_COVER_MONTHS", "6", "Months of cover above which stock is reported as slow-moving"),
+    (1091523, "ZC_ROLE_CONFLICTS", "N",
+     "Y: a role cannot be given to a user who holds a role it must be kept apart from (setup/roles/role-conflicts.csv)"),
 ]
 
 # --- new tables ------------------------------------------------------------------------------------
@@ -713,6 +723,8 @@ MENUS = [  # (id, name, action, window or process, seq)
     (1091522, "Slow and Non-moving Stock", "P", PROC_SLOW, 220),
     (1091523, "Stock Wastage Report", "P", PROC_WASTAGE, 230),
     (1091524, "Print Stock Labels", "P", PROC_STOCK_LABELS, 240),
+    (1091525, "Set Up Phase 1 Roles", "P", PROC_ROLES, 250),
+    (1091526, "Roles and Duties Report", "P", PROC_ROLE_REPORT, 260),
 ]
 
 # Windows over iDempiere tables with chosen fields: (column, read-only, hidden)
