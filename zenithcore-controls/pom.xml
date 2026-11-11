@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>ke.co.pollux.zenithcore</groupId>
+  <artifactId>zenithcore-controls</artifactId>
+  <version>0.1.0-SNAPSHOT</version>
+  <packaging>jar</packaging>
+
+  <name>ZenithCore Controls</name>
+  <description>Finance, procurement and stores control rules for ZenithCore: second-person approval, supplier pre-qualification gate, three-way match, audit-query closure, budget check.</description>
+
+  <properties>
+    <maven.compiler.release>17</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <junit.version>5.11.4</junit.version>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.13.0</version>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.5.2</version>
+      </plugin>
+      <!-- OSGi headers so the rules load as a bundle inside iDempiere. It depends only on java.*. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>3.4.2</version>
+        <configuration>
+          <archive>
+            <manifestEntries>
+              <Bundle-ManifestVersion>2</Bundle-ManifestVersion>
+              <Bundle-SymbolicName>ke.co.pollux.zenithcore.controls</Bundle-SymbolicName>
+              <Bundle-Name>ZenithCore Controls</Bundle-Name>
+              <Bundle-Vendor>Pollux Solutions Ltd</Bundle-Vendor>
+              <Bundle-Version>0.1.0.SNAPSHOT</Bundle-Version>
+              <Bundle-RequiredExecutionEnvironment>JavaSE-17</Bundle-RequiredExecutionEnvironment>
+              <Export-Package>ke.co.pollux.zenithcore.controls;version="0.1.0"</Export-Package>
+            </manifestEntries>
+          </archive>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>

@@ -1,0 +1,9 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: ZenithCore Look and Feel
+Bundle-SymbolicName: ke.co.pollux.zenithcore.theme
+Bundle-Version: 0.1.0.qualifier
+Bundle-Vendor: Pollux Solutions Ltd
+Fragment-Host: org.adempiere.ui.zk;bundle-version="13.0.0"
+Bundle-RequiredExecutionEnvironment: JavaSE-17
+Automatic-Module-Name: ke.co.pollux.zenithcore.theme

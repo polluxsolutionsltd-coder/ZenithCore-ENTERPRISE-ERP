@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>ke.co.pollux.zenithcore</groupId>
+  <artifactId>ke.co.pollux.zenithcore.payroll.idempiere</artifactId>
+  <version>0.1.0-SNAPSHOT</version>
+  <packaging>eclipse-plugin</packaging>
+
+  <name>ZenithCore Kenyan Payroll for iDempiere</name>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <tycho.version>4.0.8</tycho.version>
+    <!-- Installed iDempiere 13 server whose plugins/ folder is the target platform. Override with -Didempiere.home=... -->
+    <idempiere.home>/home/claude/idempiere-server</idempiere.home>
+  </properties>
+
+  <dependencies>
+    <!-- The standalone payroll engine, which carries OSGi headers. -->
+    <dependency>
+      <groupId>ke.co.pollux.zenithcore</groupId>
+      <artifactId>zenithcore-payroll-ke</artifactId>
+      <version>0.1.0-SNAPSHOT</version>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.eclipse.tycho</groupId>
+        <artifactId>tycho-maven-plugin</artifactId>
+        <version>${tycho.version}</version>
+        <extensions>true</extensions>
+      </plugin>
+      <plugin>
+        <groupId>org.eclipse.tycho</groupId>
+        <artifactId>target-platform-configuration</artifactId>
+        <version>${tycho.version}</version>
+        <configuration>
+          <pomDependencies>consider</pomDependencies>
+          <target>
+            <file>zenithcore-idempiere13.target</file>
+          </target>
+          <!-- Same work-around as iDempiere's own parent POM for the org.eclipse.core.runtime split package. -->
+          <dependency-resolution>
+            <extraRequirements>
+              <requirement>
+                <type>eclipse-plugin</type>
+                <id>org.eclipse.core.runtime</id>
+                <versionRange>0.0.0</versionRange>
+              </requirement>
+              <requirement>
+                <type>eclipse-plugin</type>
+                <id>org.eclipse.equinox.common</id>
+                <versionRange>0.0.0</versionRange>
+              </requirement>
+            </extraRequirements>
+          </dependency-resolution>
+          <environments>
+            <environment><os>linux</os><ws>gtk</ws><arch>x86_64</arch></environment>
+          </environments>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.eclipse.tycho</groupId>
+        <artifactId>tycho-compiler-plugin</artifactId>
+        <version>${tycho.version}</version>
+        <configuration>
+          <release>17</release>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>

@@ -7,3 +7,4 @@ target/
 .project
 .classpath
 .DS_Store
+__pycache__/
