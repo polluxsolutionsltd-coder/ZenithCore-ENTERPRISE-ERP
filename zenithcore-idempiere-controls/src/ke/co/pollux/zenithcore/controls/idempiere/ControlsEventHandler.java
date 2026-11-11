@@ -47,6 +47,7 @@ import ke.co.pollux.zenithcore.controls.BoardPack;
 import ke.co.pollux.zenithcore.controls.BudgetCheck;
 import ke.co.pollux.zenithcore.controls.ControlResult;
 import ke.co.pollux.zenithcore.controls.GoodsInspection;
+import ke.co.pollux.zenithcore.controls.RoleSetup;
 import ke.co.pollux.zenithcore.controls.SecondPersonApproval;
 import ke.co.pollux.zenithcore.controls.StockAnalysis;
 import ke.co.pollux.zenithcore.controls.StoresControl;
@@ -94,6 +95,8 @@ public class ControlsEventHandler extends AbstractEventHandler {
         registerTableEvent(IEventTopics.DOC_BEFORE_PREPARE, "C_Invoice");
         registerTableEvent(IEventTopics.PO_BEFORE_NEW, "M_InventoryLine");
         registerTableEvent(IEventTopics.PO_BEFORE_CHANGE, "M_InventoryLine");
+        registerTableEvent(IEventTopics.PO_BEFORE_NEW, "AD_User_Roles");
+        registerTableEvent(IEventTopics.PO_BEFORE_CHANGE, "AD_User_Roles");
     }
 
     @Override
@@ -101,6 +104,10 @@ public class ControlsEventHandler extends AbstractEventHandler {
         PO po = getPO(event);
         if ("M_InventoryLine".equals(po.get_TableName())) {
             countLineChanged(event, po);
+            return;
+        }
+        if ("AD_User_Roles".equals(po.get_TableName())) {
+            roleGiven(event, po);
             return;
         }
         if (po.get_Attribute(OPENING_BALANCE) != null) {
@@ -123,6 +130,35 @@ public class ControlsEventHandler extends AbstractEventHandler {
         } catch (RuntimeException e) {
             log.severe("ZenithCore controls failed on " + po.get_TableName() + " " + po.get_ID() + ": " + e);
             addErrorMessage(event, "ZenithCore controls could not check this document: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Separation of duties (ZC_ROLE_CONFLICTS = Y): a role is not given to a user who already holds a role it
+     * must be kept apart from (setup/roles/role-conflicts.csv). Checked when a role is added, re-activated or
+     * changed on a user; removing a role is always allowed.
+     */
+    private void roleGiven(Event event, PO po) {
+        boolean isNew = IEventTopics.PO_BEFORE_NEW.equals(event.getTopic());
+        if (!po.get_ValueAsBoolean("IsActive") || !isNew && !po.is_ValueChanged("IsActive") && !po.is_ValueChanged("AD_Role_ID")
+                && !po.is_ValueChanged("AD_User_ID")) {
+            return;
+        }
+        int client = po.getAD_Client_ID();
+        if (client == 0 || !MSysConfig.getBooleanValue("ZC_ROLE_CONFLICTS", false, client)) {
+            return;
+        }
+        String trx = po.get_TrxName();
+        int user = po.get_ValueAsInt("AD_User_ID");
+        String newRole = DB.getSQLValueStringEx(trx, "SELECT Name FROM AD_Role WHERE AD_Role_ID=?", po.get_ValueAsInt("AD_Role_ID"));
+        String others = DB.getSQLValueStringEx(trx, "SELECT string_agg(r.Name, '|') FROM AD_User_Roles ur JOIN AD_Role r ON "
+                + "r.AD_Role_ID=ur.AD_Role_ID WHERE ur.AD_User_ID=? AND ur.IsActive='Y' AND r.IsActive='Y' AND ur.AD_Role_ID<>?", user,
+                po.get_ValueAsInt("AD_Role_ID"));
+        java.util.Set<String> held = new java.util.LinkedHashSet<>(others == null ? List.of() : List.of(others.split("\\|")));
+        String userName = DB.getSQLValueStringEx(trx, "SELECT Name FROM AD_User WHERE AD_User_ID=?", user);
+        ControlResult r = RoleSetup.checkAssignment(userName, held, newRole, RoleFiles.definition().conflicts());
+        if (!r.allowed()) {
+            addErrorMessage(event, r.message());
         }
     }
 

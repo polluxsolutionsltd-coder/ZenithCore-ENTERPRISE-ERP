@@ -225,6 +225,18 @@ Invalid) and the user sees every reason at once. Reversals are not checked.
     `P:<product code>|L:<lot>|S:<serial>|E:<yyyy-mm-dd>` (parts without a value are left out)
     ([sample](../docs/images/stock-labels.png)).
   Stock is valued at the current cost of the primary accounting schema, as on iDempiere's stock valuation.
+- **Phase 1 roles and separation of duties** (data in [setup/roles](setup/roles/README.md), checked by `RoleSetupTest`):
+  - **Set Up Phase 1 Roles** (menu, run by the institution's administrator): creates or updates nine manual roles
+    (Store Keeper, Stock Counter, Inspection Committee, Procurement Officer, Cashier, Finance Officer, Finance
+    Manager, Board Pack Approver, Asset Verifier). Each role gets the windows, forms, processes and document
+    actions in the file. If any name is not found, nothing changes. It is safe to run again; access added by hand
+    is kept and listed.
+  - **Separation of duties** (client setting `ZC_ROLE_CONFLICTS` = Y): a role cannot be given to a user who holds a
+    role it must be kept apart from, for example Store Keeper and Stock Counter. The refusal gives the reason.
+  - **Roles and Duties Report** (menu): users holding conflicting roles, then each role with its users, what it
+    must not do, and what it can do in this tenant, read from the role itself, with access added locally marked
+    ([sample](../docs/images/roles-and-duties-report.png)). iDempiere gives its SuperUser support login every new
+    role, so support logins are listed apart, with a go-live note.
 - **Audit Query Register** window: reference, title, raised by (external or internal audit, board, KRA),
   financial year, risk, finding, recommendation, responsible person, due date, management response, status.
   **Close Audit Query** needs the management response, at least one evidence file attached, and a closer who
@@ -340,7 +352,23 @@ Verified on 10 November 2026 in iDempiere 13 (GardenWorld), through the web UI:
     rejected on receipt (Damaged), shown apart.
   - Print Stock Labels for HQ Warehouse: 4 lot labels; all 4 QR codes decoded with ZXing to the product, lot and
     expiry printed on them.
-- Not yet exercised in the UI: blacklisted supplier, supplier payments (gate and budget), LPO completion under
+- Phase 1 roles, 11 November 2026 (GardenWorld; test users in `testdata/garden-world-roles.sql`, password = user name):
+  - The first run of Set Up Phase 1 Roles refused and changed nothing: iDempiere 13's Cash Journal window is
+    inactive (cash is a Bank/Cash account), so it was taken out of the Cashier role.
+  - Second run: 9 roles created with 250 access records. Third run: 0 changes.
+  - Logged in as each test user, the menu search found only that role's windows. For example, Counter found Blind
+    Stock Count only, Cashier found Payment and Receipt only, and Verifier found Asset Verification only.
+  - The report found that Store Keeper had been given Complete, Prepare and Void on Cost Adjustment, which shares
+    the MMI base type with counts and internal use. The file now names MMI/PI and MMI/IU, the process lists
+    document actions that are not in the file, and the report marks them. The three leftover actions were removed
+    on the role.
+  - With ZC_ROLE_CONFLICTS = Y, GardenAdmin's attempt to give Counter (Stock Counter) the Store Keeper role in the
+    User window was refused ("Counter already holds Stock Counter, so cannot also be Store Keeper: a custodian
+    would count their own store"). Giving Counter the Cashier role saved; it was then removed.
+  - Roles and Duties Report: 1 user with conflicting roles, Buyer as Procurement Officer and Inspection Committee
+    (planted by the test data). SuperUser, which holds every role, is listed apart as a support login.
+- Not yet exercised in the UI: completing documents while logged in under each Phase 1 role (document action access
+  per role is in place and listed on the report); blacklisted supplier, supplier payments (gate and budget), LPO completion under
   the gate, requisitions and supplier invoices not from an LPO under the budget check (same code paths, covered
   by the rule tests).
 

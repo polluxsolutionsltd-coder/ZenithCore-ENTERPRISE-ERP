@@ -1,0 +1,150 @@
+role,type,name,access
+Store Keeper,window,Material Receipt,RW
+Store Keeper,window,Shipment (Customer),RW
+Store Keeper,window,Return to Vendor,RW
+Store Keeper,window,Inventory Move,RW
+Store Keeper,window,Inventory Decrease/Increase,RW
+Store Keeper,window,Physical Inventory,RW
+Store Keeper,window,Product,R
+Store Keeper,window,Warehouse and Locators,R
+Store Keeper,window,Stock Adjustment Reasons,R
+Store Keeper,window,Goods Inspection,R
+Store Keeper,process,Stock Expiry Report,run
+Store Keeper,process,Slow and Non-moving Stock,run
+Store Keeper,process,Print Stock Labels,run
+Store Keeper,process,Storage Detail,run
+Store Keeper,process,Transaction Detail,run
+Store Keeper,document,MMR,PR CO VO
+Store Keeper,document,MMS,PR CO VO
+Store Keeper,document,MMM,PR CO VO
+Store Keeper,document,MMI/PI,PR CO VO
+Store Keeper,document,MMI/IU,PR CO VO
+Stock Counter,window,Blind Stock Count,RW
+Stock Counter,process,Submit Count,run
+Inspection Committee,window,Goods Inspection,RW
+Inspection Committee,window,Material Receipt,R
+Inspection Committee,window,Purchase Order,R
+Inspection Committee,process,Load Receipt Lines,run
+Inspection Committee,process,Complete Inspection,run
+Procurement Officer,window,Requisition,RW
+Procurement Officer,window,Purchase Order,RW
+Procurement Officer,window,Business Partner,RW
+Procurement Officer,window,Supplier Pre-qualification (Kenya),RW
+Procurement Officer,window,Product,R
+Procurement Officer,window,Material Receipt,R
+Procurement Officer,window,Goods Inspection,R
+Procurement Officer,window,Purchase Invoice and Credit/Debit Note,R
+Procurement Officer,window,Budgets (Kenya),R
+Procurement Officer,process,Budget Status Report,run
+Procurement Officer,document,POR,PR CO VO CL
+Procurement Officer,document,POO,PR CO VO CL
+Cashier,window,Payment and Receipt,RW
+Cashier,window,Business Partner,R
+Cashier,window,Sales Invoice and Credit/Debit Note,R
+Cashier,process,Statement of Accounts,run
+Cashier,document,ARR,PR CO
+Finance Officer,window,GL Journal,RW
+Finance Officer,window,Purchase Invoice and Credit/Debit Note,RW
+Finance Officer,window,Sales Invoice and Credit/Debit Note,RW
+Finance Officer,window,Payment and Receipt,RW
+Finance Officer,window,Bank/Cash Statement,RW
+Finance Officer,window,Statement Matching Rules,RW
+Finance Officer,window,Import Bank Statement,RW
+Finance Officer,window,Budgets (Kenya),RW
+Finance Officer,window,Opening Balances,RW
+Finance Officer,window,Board Packs,RW
+Finance Officer,window,Asset,RW
+Finance Officer,window,Asset Locations,RW
+Finance Officer,window,Audit Query Register,RW
+Finance Officer,window,Business Partner,R
+Finance Officer,window,Charge,R
+Finance Officer,window,Withholding Tax Rates (Kenya),R
+Finance Officer,window,Accounting Fact Details,R
+Finance Officer,window,Physical Inventory,R
+Finance Officer,form,Import File Loader,run
+Finance Officer,form,Payment Allocation,run
+Finance Officer,process,Match Statement,run
+Finance Officer,process,Bank Reconciliation Statement,run
+Finance Officer,process,Import Bank Statement,run
+Finance Officer,process,Budget Status Report,run
+Finance Officer,process,Withholding Tax Register,run
+Finance Officer,process,Load Attached Files,run
+Finance Officer,process,Check and Reconcile,run
+Finance Officer,process,Post Opening Balances,run
+Finance Officer,process,Generate Board Pack,run
+Finance Officer,process,Assign Asset Tags,run
+Finance Officer,process,Print Asset Labels,run
+Finance Officer,process,Stock Count Variance Report,run
+Finance Officer,process,Stock Wastage Report,run
+Finance Officer,process,Trial Balance,run
+Finance Officer,process,Statement of Accounts,run
+Finance Officer,process,Aging,run
+Finance Officer,process,Inventory Valuation Report,run
+Finance Officer,document,GLJ,PR CO VO
+Finance Officer,document,API,PR CO VO
+Finance Officer,document,APC,PR CO VO
+Finance Officer,document,ARI,PR CO VO
+Finance Officer,document,ARC,PR CO VO
+Finance Officer,document,APP,PR CO VO
+Finance Officer,document,CMB,PR CO
+Finance Manager,window,GL Journal,RW
+Finance Manager,window,Payment and Receipt,RW
+Finance Manager,window,Purchase Invoice and Credit/Debit Note,RW
+Finance Manager,window,Sales Invoice and Credit/Debit Note,RW
+Finance Manager,window,Physical Inventory,RW
+Finance Manager,window,Inventory Decrease/Increase,RW
+Finance Manager,window,Material Receipt,RW
+Finance Manager,window,Shipment (Customer),RW
+Finance Manager,window,Inventory Move,RW
+Finance Manager,window,Bank/Cash Statement,RW
+Finance Manager,window,Budgets (Kenya),RW
+Finance Manager,window,Opening Balances,RW
+Finance Manager,window,Board Packs,RW
+Finance Manager,window,Audit Query Register,RW
+Finance Manager,window,Document Approval Rules,RW
+Finance Manager,window,Stock Adjustment Reasons,RW
+Finance Manager,window,Withholding Tax Rates (Kenya),RW
+Finance Manager,window,Charge,RW
+Finance Manager,window,Calendar Year and Period,RW
+Finance Manager,window,Business Partner,R
+Finance Manager,window,Supplier Pre-qualification (Kenya),R
+Finance Manager,window,Accounting Fact Details,R
+Finance Manager,window,Asset,R
+Finance Manager,process,Approve Budget,run
+Finance Manager,process,Close Audit Query,run
+Finance Manager,process,Sign Off,run
+Finance Manager,process,Generate Board Pack,run
+Finance Manager,process,Budget Status Report,run
+Finance Manager,process,Withholding Tax Register,run
+Finance Manager,process,Bank Reconciliation Statement,run
+Finance Manager,process,Stock Count Variance Report,run
+Finance Manager,process,Stock Wastage Report,run
+Finance Manager,process,Trial Balance,run
+Finance Manager,process,Statement of Accounts,run
+Finance Manager,process,Aging,run
+Finance Manager,process,Inventory Valuation Report,run
+Finance Manager,document,GLJ,CO VO RC RA
+Finance Manager,document,API,CO VO RC
+Finance Manager,document,APC,CO VO RC
+Finance Manager,document,ARI,CO VO RC
+Finance Manager,document,ARC,CO VO RC
+Finance Manager,document,APP,CO VO RC
+Finance Manager,document,ARR,VO RC
+Finance Manager,document,MMI,CO VO RC
+Finance Manager,document,MMR,RC
+Finance Manager,document,MMS,RC
+Finance Manager,document,MMM,RC
+Finance Manager,document,CMB,CO VO
+Board Pack Approver,window,Board Packs,RW
+Board Pack Approver,window,Audit Query Register,R
+Board Pack Approver,window,Budgets (Kenya),R
+Board Pack Approver,process,Approve Board Pack,run
+Board Pack Approver,process,Budget Status Report,run
+Board Pack Approver,process,Trial Balance,run
+Asset Verifier,window,Asset Verification,RW
+Asset Verifier,window,Asset,R
+Asset Verifier,window,Asset Locations,R
+Asset Verifier,process,Load Assets,run
+Asset Verifier,process,Print Verification Sheets,run
+Asset Verifier,process,Complete Verification,run
+Asset Verifier,process,Print Exceptions,run
