@@ -64,8 +64,14 @@ public final class AssetPdf {
 
     // ------------------------------------------------------------------ labels
 
-    /** One label: tag, asset name, and the owner text shown on every label. */
-    public record Label(String tag, String name, String group) {
+    /**
+     * One label: the number in large type (asset tag, or lot or serial number), the name, a smaller line
+     * under the number, and what the QR code holds (the tag itself for assets).
+     */
+    public record Label(String tag, String name, String group, String qr) {
+        public Label(String tag, String name, String group) {
+            this(tag, name, group, tag);
+        }
     }
 
     /**
@@ -97,7 +103,7 @@ public final class AssetPdf {
             cb.rectangle(x, y, w, h);
             cb.stroke();
             float qr = 24 * mm;
-            qr(cb, l.tag(), x + 2.5f * mm, y + (h - qr) / 2, qr);
+            qr(cb, l.qr(), x + 2.5f * mm, y + (h - qr) / 2, qr);
             float tx = x + 2.5f * mm + qr + 2 * mm, tw = w - (tx - x) - 2 * mm;
             cb.setColorFill(NAVY);
             cb.rectangle(x, y + h - 1.6f * mm, w, 1.6f * mm);
@@ -115,7 +121,7 @@ public final class AssetPdf {
             }
         }
         if (labels.isEmpty()) {
-            doc.add(new Paragraph("No tagged assets match.", TD));
+            doc.add(new Paragraph("Nothing to label.", TD));
         }
         doc.close();
         return out.toByteArray();

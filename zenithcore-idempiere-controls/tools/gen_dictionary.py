@@ -43,7 +43,7 @@ def uu(kind, key):
 
 CORE_ELEMENTS = {"Value", "Name", "Description", "Processed", "DocBaseType", "C_Year_ID", "C_Activity_ID", "Account_ID",
                  "C_Charge_ID", "ValidFrom", "ValidTo", "C_Period_ID", "M_InOut_ID", "M_InOutLine_ID", "M_Product_ID",
-                 "M_Movement_ID", "C_BankAccount_ID", "C_Invoice_ID", "DateDoc", "Line", "C_BankStatement_ID", "A_Asset_ID", "A_Asset_Group_ID", "DateFrom"}
+                 "M_Movement_ID", "C_BankAccount_ID", "C_Invoice_ID", "DateDoc", "Line", "C_BankStatement_ID", "A_Asset_ID", "A_Asset_Group_ID", "DateFrom", "M_Warehouse_ID"}
 ACCOUNT_REF_VALUE = 362  # C_ElementValue (trx): posting accounts only
 NUMBER = 22
 QUANTITY = 29
@@ -97,6 +97,7 @@ PROC_BP_GENERATE, PROC_BP_APPROVE = 1091514, 1091515
 PROC_ASSET_TAGS, PROC_ASSET_LABELS, PROC_AV_LOAD, PROC_AV_SHEETS, PROC_AV_COMPLETE, PROC_AV_EXCEPTIONS = (
     1091516, 1091517, 1091518, 1091519, 1091520, 1091521)
 PROC_KENYA_SETUP = 1091522
+PROC_EXPIRY, PROC_SLOW, PROC_WASTAGE, PROC_STOCK_LABELS = 1091523, 1091524, 1091525, 1091526
 PROCESSES = [
     (PROC_CLOSE_AQ, "ZC_AuditQueryClose", "Close Audit Query",
      "Closes an audit query once the management response and evidence are recorded. The person responsible for "
@@ -183,6 +184,20 @@ PROCESSES = [
      "Adds the Kenyan VAT rates, ZenithCore charges and withholding types and dated rates to this tenant (after Initial "
      "Tenant Setup and Import Account with AccountingKE.csv). Safe to run again; reports rates that differ.",
      "ke.co.pollux.zenithcore.controls.idempiere.process.ApplyKenyaSetup"),
+    (PROC_EXPIRY, "ZC_StockExpiryReport", "Stock Expiry Report",
+     "Stock by lot with days to expiry: expired, within 30, 31-90, 91-180 days, later; soonest first, with value. PDF.",
+     "ke.co.pollux.zenithcore.controls.idempiere.process.StockExpiryReport"),
+    (PROC_SLOW, "ZC_SlowMovingReport", "Slow and Non-moving Stock",
+     "Stock not issued for ZC_SLOW_MOVING_DAYS (slow) or ZC_NON_MOVING_DAYS (non-moving), or with more than "
+     "ZC_SLOW_COVER_MONTHS of cover, with value. PDF.",
+     "ke.co.pollux.zenithcore.controls.idempiere.process.SlowMovingReport"),
+    (PROC_WASTAGE, "ZC_WastageReport", "Stock Wastage Report",
+     "Stock written off (expired, damaged, theft, obsolete) and rejected on receipt in the period, by reason, store "
+     "and item, with value. PDF.",
+     "ke.co.pollux.zenithcore.controls.idempiere.process.WastageReport"),
+    (PROC_STOCK_LABELS, "ZC_StockLabels", "Print Stock Labels",
+     "Lot labels with product, lot, expiry and a QR code, from a goods received note or the stock on hand. PDF.",
+     "ke.co.pollux.zenithcore.controls.idempiere.process.StockLabels"),
 ]
 
 PROCESS_PARAMS = [  # (id, process, column, name, reference, mandatory, seq, default)
@@ -199,6 +214,15 @@ PROCESS_PARAMS = [  # (id, process, column, name, reference, mandatory, seq, def
     (1091510, PROC_ASSET_LABELS, "A_Asset_Group_ID", "Asset group", TABLEDIR, False, 10, None),
     (1091511, PROC_ASSET_LABELS, "ZC_AssetLocation_ID", "Location", TABLEDIR, False, 20, None),
     (1091512, PROC_ASSET_LABELS, "DateFrom", "Tagged on or after", DATE, False, 30, None),
+    (1091513, PROC_EXPIRY, "M_Warehouse_ID", "Store", TABLEDIR, False, 10, None),
+    (1091514, PROC_EXPIRY, "DateTo", "As at", DATE, True, 20, "@#Date@"),
+    (1091515, PROC_SLOW, "M_Warehouse_ID", "Store", TABLEDIR, False, 10, None),
+    (1091516, PROC_SLOW, "DateTo", "As at", DATE, True, 20, "@#Date@"),
+    (1091517, PROC_WASTAGE, "DateFrom", "From", DATE, True, 10, None),
+    (1091518, PROC_WASTAGE, "DateTo", "To", DATE, True, 20, "@#Date@"),
+    (1091519, PROC_WASTAGE, "M_Warehouse_ID", "Store", TABLEDIR, False, 30, None),
+    (1091520, PROC_STOCK_LABELS, "M_InOut_ID", "Goods received note", SEARCH, False, 10, None),
+    (1091521, PROC_STOCK_LABELS, "M_Warehouse_ID", "Store (stock on hand)", TABLEDIR, False, 20, None),
 ]
 
 # --- client switches -------------------------------------------------------------------------------
@@ -244,6 +268,12 @@ SYSCONFIG = [  # (id, name, system default, description); each client sets its o
     (1091517, "ZC_ASSET_TAG_DIGITS", "6", "Digits in asset tag numbers before the check digit"),
     (1091518, "ZC_ASSET_LABEL_TEXT", "Property of the institution. If found, please return.",
      "Line printed on every asset label (owner and contact)"),
+    (1091519, "ZC_BLOCK_EXPIRED_ISSUE", "N",
+     "Y: expired lots cannot be shipped, used (except written off) or moved into a normal location, and lines for "
+     "products with expiry dates must name the lot"),
+    (1091520, "ZC_SLOW_MOVING_DAYS", "90", "Days without an issue after which stock is reported as slow-moving"),
+    (1091521, "ZC_NON_MOVING_DAYS", "365", "Days without an issue after which stock is reported as non-moving"),
+    (1091522, "ZC_SLOW_COVER_MONTHS", "6", "Months of cover above which stock is reported as slow-moving"),
 ]
 
 # --- new tables ------------------------------------------------------------------------------------
@@ -679,6 +709,10 @@ MENUS = [  # (id, name, action, window or process, seq)
     (1091518, "Print Asset Labels", "P", PROC_ASSET_LABELS, 180),
     (1091519, "Asset Verification", "W", 1091512, 190),
     (1091520, "Apply Kenya Setup", "P", PROC_KENYA_SETUP, 200),
+    (1091521, "Stock Expiry Report", "P", PROC_EXPIRY, 210),
+    (1091522, "Slow and Non-moving Stock", "P", PROC_SLOW, 220),
+    (1091523, "Stock Wastage Report", "P", PROC_WASTAGE, 230),
+    (1091524, "Print Stock Labels", "P", PROC_STOCK_LABELS, 240),
 ]
 
 # Windows over iDempiere tables with chosen fields: (column, read-only, hidden)

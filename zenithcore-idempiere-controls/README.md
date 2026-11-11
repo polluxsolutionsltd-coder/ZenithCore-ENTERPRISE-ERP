@@ -203,6 +203,28 @@ Invalid) and the user sees every reason at once. Reversals are not checked.
      not used.
   Shipped as data files plus a process rather than a 2Pack, so rates are reviewable, dated and re-runnable. A 2Pack
   can still be exported from a configured tenant to clone it.
+- **Expired stock and stock reports** (lots, serial numbers and expiry dates are iDempiere attribute sets: give
+  the product an attribute set with Lot and Guarantee Date, or Serial No; the expiry date is the guarantee date of
+  the lot):
+  - **Expired stock control** (client setting `ZC_BLOCK_EXPIRED_ISSUE` = Y). A lot is usable up to and including
+    its expiry date. Expired lots cannot be supplied on customer shipments, used on internal use (except written
+    off with a write-off reason such as Expired) or moved into a normal location; moving them to a quarantine or
+    rejected location is allowed. Shipment, internal use and movement lines for a product with expiry dates must
+    name the lot, so the store issues the first to expire rather than letting iDempiere pick one.
+  - **Stock Expiry Report** (menu, store and date): stock by lot, soonest expiry first, with days left and value,
+    and totals for expired, within 30 days, 31-90, 91-180, over 180 days and no date
+    ([sample](../docs/images/stock-expiry-report.png)).
+  - **Slow and Non-moving Stock** (menu): items with no issue for `ZC_NON_MOVING_DAYS` (365, non-moving) or
+    `ZC_SLOW_MOVING_DAYS` (90, slow), or with more than `ZC_SLOW_COVER_MONTHS` (6) months of cover. Issues are
+    sales, issues to users and production; write-offs and transfers are not.
+  - **Stock Wastage Report** (menu, period and store): write-offs (internal use and counts with a write-off
+    reason) by reason, store and item at current cost, with every line; goods rejected on inspection shown
+    apart, at the order price, since they go back to the supplier.
+  - **Print Stock Labels** (menu, a goods received note or a store): one label per lot or serial number, 24 per
+    A4 sheet like the asset labels, with the product, lot or serial number, expiry date and a QR code holding
+    `P:<product code>|L:<lot>|S:<serial>|E:<yyyy-mm-dd>` (parts without a value are left out)
+    ([sample](../docs/images/stock-labels.png)).
+  Stock is valued at the current cost of the primary accounting schema, as on iDempiere's stock valuation.
 - **Audit Query Register** window: reference, title, raised by (external or internal audit, board, KRA),
   financial year, risk, finding, recommendation, responsible person, due date, management response, status.
   **Close Audit Query** needs the management response, at least one evidence file attached, and a closer who
@@ -305,6 +327,19 @@ Verified on 10 November 2026 in iDempiere 13 (GardenWorld), through the web UI:
     160.00, Cr 21100 1,160.00.
   - The chart check in CI caught five account names with commas, which iDempiere's setup would have turned into
     spaces; renamed.
+- Expiry, stock reports and labels, 10 November 2026 (test data in `testdata/garden-world-stock-expiry.sql`: four
+  lots of Fertilizer #50, one expired, plus 40 units without a lot):
+  - Stock Expiry Report: expired 180.00 (GW-L01), within 30 days 144.00, 91-180 days 216.00, over 180 days 360.00,
+    no date 1,732.50 (the unlotted fertilizer and GardenWorld's Patio Chairs, whose attribute set also records a
+    guarantee date).
+  - Internal use ZC-T30 by GardenUser was refused for both lines: 2 of expired lot GW-L01 for "Issue to cost
+    centre", and 1 unit with no lot. With the Expired reason on line 10 and lot GW-L02 on line 20 it completed.
+  - Slow and Non-moving Stock: 19 non-moving items (8,044.97) and Fertilizer #50 slow on cover (1 issued in 12
+    months; the 2 written off do not count as issues).
+  - Stock Wastage Report for 2026: 271.85 written off on 4 lines (Damaged, Count variance, Expired), and 36.00
+    rejected on receipt (Damaged), shown apart.
+  - Print Stock Labels for HQ Warehouse: 4 lot labels; all 4 QR codes decoded with ZXing to the product, lot and
+    expiry printed on them.
 - Not yet exercised in the UI: blacklisted supplier, supplier payments (gate and budget), LPO completion under
   the gate, requisitions and supplier invoices not from an LPO under the budget check (same code paths, covered
   by the rule tests).
