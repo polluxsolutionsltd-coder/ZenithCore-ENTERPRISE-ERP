@@ -13,7 +13,12 @@ import org.compiere.model.MBPartner;
 import org.compiere.model.MDocType;
 import org.compiere.model.MInvoice;
 import org.compiere.model.MInvoiceLine;
+import org.compiere.model.MOrder;
 import org.compiere.model.MOrderLine;
+import org.compiere.model.MPayment;
+import org.compiere.model.MPriceList;
+import org.compiere.model.MRequisition;
+import org.compiere.model.MRequisitionLine;
 import org.compiere.model.MProduct;
 import org.compiere.model.MSysConfig;
 import org.compiere.model.PO;
@@ -23,6 +28,7 @@ import org.compiere.util.DB;
 import org.compiere.util.Env;
 import org.osgi.service.event.Event;
 
+import ke.co.pollux.zenithcore.controls.BudgetCheck;
 import ke.co.pollux.zenithcore.controls.ControlResult;
 import ke.co.pollux.zenithcore.controls.SecondPersonApproval;
 import ke.co.pollux.zenithcore.controls.SupplierGate;
@@ -122,7 +128,88 @@ public class ControlsEventHandler extends AbstractEventHandler {
             BigDecimal tolerance = new BigDecimal(MSysConfig.getValue("ZC_THREE_WAY_PRICE_TOLERANCE_PCT", "0", clientId).trim());
             results.add(ThreeWayMatch.check(matchLines((MInvoice) po), tolerance));
         }
+
+        // 4. Budget check
+        boolean budgetDoc = "M_Requisition".equals(table) || ("C_Order".equals(table) && !po.get_ValueAsBoolean("IsSOTrx"))
+                || ("C_Invoice".equals(table) && MDocType.DOCBASETYPE_APInvoice.equals(base))
+                || ("C_Payment".equals(table) && !po.get_ValueAsBoolean("IsReceipt") && po.get_ValueAsInt("C_Charge_ID") > 0
+                        && po.get_ValueAsInt("C_Invoice_ID") <= 0);
+        if (budgetDoc && MSysConfig.getBooleanValue("ZC_BUDGET_CONTROL", false, clientId)) {
+            BigDecimal tolerance = new BigDecimal(MSysConfig.getValue("ZC_BUDGET_TOLERANCE_PCT", "0", clientId).trim());
+            BudgetLedger ledger = new BudgetLedger(po.getCtx(), clientId, po.get_TrxName());
+            Timestamp date = documentTimestamp(po);
+            int year = ledger.yearOf(date, po.getAD_Org_ID());
+            if (year <= 0) {
+                results.add(ControlResult.block(BudgetCheck.CONTROL, List.of("no financial year covers " + date)));
+            } else {
+                results.add(ledger.check(label, clientId, year, budgetLines(po, ledger, date), table, po.get_ID(), tolerance));
+            }
+        }
         return results;
+    }
+
+    private static Timestamp documentTimestamp(PO po) {
+        for (String col : new String[] {"DateAcct", "DateOrdered", "DateInvoiced", "DateDoc", "DateTrx"}) {
+            if (po.get_ColumnIndex(col) >= 0 && po.get_Value(col) != null) {
+                return (Timestamp) po.get_Value(col);
+            }
+        }
+        return new Timestamp(System.currentTimeMillis());
+    }
+
+    /** The document's lines as budget lines (cost centre, account, amount in accounting currency). */
+    private static List<BudgetLedger.Line> budgetLines(PO po, BudgetLedger ledger, Timestamp date) {
+        List<BudgetLedger.Line> out = new ArrayList<>();
+        int client = po.getAD_Client_ID(), org = po.getAD_Org_ID();
+        int headerActivity = po.get_ColumnIndex("C_Activity_ID") >= 0 ? po.get_ValueAsInt("C_Activity_ID") : 0;
+        switch (po.get_TableName()) {
+            case "M_Requisition" -> {
+                MRequisition r = (MRequisition) po;
+                int currency = r.getM_PriceList_ID() > 0 ? MPriceList.get(r.getM_PriceList_ID()).getC_Currency_ID() : 0;
+                for (MRequisitionLine l : r.getLines()) {
+                    out.add(new BudgetLedger.Line("line " + l.getLine(), headerActivity,
+                            ledger.accountFor(l.getM_Product_ID(), l.getC_Charge_ID()),
+                            convert(ledger, l.getLineNetAmt(), currency, date, 0, client, org)));
+                }
+            }
+            case "C_Order" -> {
+                MOrder o = (MOrder) po;
+                for (MOrderLine l : o.getLines(true, null)) {
+                    out.add(new BudgetLedger.Line("line " + l.getLine(), l.getC_Activity_ID() > 0 ? l.getC_Activity_ID() : headerActivity,
+                            ledger.accountFor(l.getM_Product_ID(), l.getC_Charge_ID()),
+                            convert(ledger, l.getLineNetAmt(), o.getC_Currency_ID(), date, o.getC_ConversionType_ID(), client, org)));
+                }
+            }
+            case "C_Invoice" -> {
+                MInvoice i = (MInvoice) po;
+                for (MInvoiceLine l : i.getLines(true)) {
+                    if (l.getC_OrderLine_ID() > 0) {
+                        continue; // already committed on its LPO
+                    }
+                    out.add(new BudgetLedger.Line("line " + l.getLine(), l.getC_Activity_ID() > 0 ? l.getC_Activity_ID() : headerActivity,
+                            ledger.accountFor(l.getM_Product_ID(), l.getC_Charge_ID()),
+                            convert(ledger, l.getLineNetAmt(), i.getC_Currency_ID(), date, i.getC_ConversionType_ID(), client, org)));
+                }
+            }
+            case "C_Payment" -> {
+                MPayment p = (MPayment) po;
+                out.add(new BudgetLedger.Line("payment", headerActivity, ledger.accountFor(0, p.getC_Charge_ID()),
+                        convert(ledger, p.getPayAmt(), p.getC_Currency_ID(), date, p.getC_ConversionType_ID(), client, org)));
+            }
+            default -> {
+                // not budget-controlled
+            }
+        }
+        return out;
+    }
+
+    private static BigDecimal convert(BudgetLedger ledger, BigDecimal amount, int currency, Timestamp date, int convType,
+            int client, int org) {
+        BigDecimal v = ledger.toAcctCurrency(amount, currency, date, convType, client, org);
+        if (v == null) {
+            throw new IllegalStateException("no exchange rate to the accounting currency on " + date);
+        }
+        return v;
     }
 
     private static MDocType docType(PO po) {

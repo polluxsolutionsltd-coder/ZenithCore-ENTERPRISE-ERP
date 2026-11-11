@@ -38,7 +38,8 @@ def uu(kind, key):
     return _pg.uu("controls-" + kind, key)
 
 
-CORE_ELEMENTS = {"Value", "Name", "Description", "Processed", "DocBaseType"}
+CORE_ELEMENTS = {"Value", "Name", "Description", "Processed", "DocBaseType", "C_Year_ID", "C_Activity_ID", "Account_ID"}
+ACCOUNT_REF_VALUE = 362  # C_ElementValue (trx): posting accounts only
 
 # --- list references -------------------------------------------------------------------------------
 REF_PREQUAL, REF_AQ_STATUS, REF_AQ_SOURCE, REF_RISK = 1091500, 1091501, 1091502, 1091503
@@ -53,11 +54,24 @@ REFERENCES = [
 
 # --- processes -------------------------------------------------------------------------------------
 PROC_CLOSE_AQ = 1091500
+PROC_BUDGET_APPROVE, PROC_BUDGET_STATUS = 1091501, 1091502
 PROCESSES = [
     (PROC_CLOSE_AQ, "ZC_AuditQueryClose", "Close Audit Query",
      "Closes an audit query once the management response and evidence are recorded. The person responsible for "
      "resolving it cannot close it.",
      "ke.co.pollux.zenithcore.controls.idempiere.process.AuditQueryClose"),
+    (PROC_BUDGET_APPROVE, "ZC_BudgetApprove", "Approve Budget",
+     "Approves a budget so that it counts in budget checks, and locks it. The person who prepared it cannot "
+     "approve it.",
+     "ke.co.pollux.zenithcore.controls.idempiere.process.BudgetApprove"),
+    (PROC_BUDGET_STATUS, "ZC_BudgetStatus", "Budget Status Report",
+     "Budget, spent, committed and available by cost centre and account for a financial year.",
+     "ke.co.pollux.zenithcore.controls.idempiere.process.BudgetStatusReport"),
+]
+
+PROCESS_PARAMS = [  # (id, process, column, name, reference, mandatory, seq, default)
+    (1091500, PROC_BUDGET_STATUS, "C_Year_ID", "Financial year", TABLEDIR, True, 10, None),
+    (1091501, PROC_BUDGET_STATUS, "C_Activity_ID", "Cost centre", TABLEDIR, False, 20, None),
 ]
 
 # --- client switches -------------------------------------------------------------------------------
@@ -69,6 +83,10 @@ SYSCONFIG = [  # (id, name, system default, description); each client sets its o
      "Y blocks supplier invoices that do not match an LPO and the goods received"),
     (1091502, "ZC_THREE_WAY_PRICE_TOLERANCE_PCT", "0",
      "Percentage by which a supplier invoice price may exceed the LPO price"),
+    (1091503, "ZC_BUDGET_CONTROL", "N",
+     "Y blocks requisitions, LPOs, supplier invoices not from an LPO, and direct payments that exceed the "
+     "approved budget for their cost centre and account"),
+    (1091504, "ZC_BUDGET_TOLERANCE_PCT", "0", "Percentage by which spending may exceed a budget line"),
 ]
 
 # --- new tables ------------------------------------------------------------------------------------
@@ -109,6 +127,34 @@ TABLES = [
              readonly=True, hidden=True),
         dict(col="ZC_CloseQuery", name="Close Audit Query", ref=BUTTON, ddl="CHAR(1)", length=1, process=PROC_CLOSE_AQ),
     ]),
+    dict(id=1091502, table="ZC_Budget", name="Budget", window=1091503, cols=[
+        dict(col="Name", name="Budget", ref=STRING, ddl="VARCHAR(120) NOT NULL", length=120, mandatory=True,
+             identifier=1, help="For example Approved budget 2026/27, or Supplementary budget 1 2026/27."),
+        dict(col="C_Year_ID", name="Financial year", ref=TABLEDIR, ddl="NUMERIC(10) NOT NULL", mandatory=True,
+             fk="C_Year"),
+        dict(col="Description", name="Description", ref=STRING, ddl="VARCHAR(255)", length=255,
+             help="For example the board minute that approved the budget."),
+        dict(col="ZC_ApprovedUser_ID", name="Approved by", ref=TABLE, refvalue=AD_USER_REF, ddl="NUMERIC(10)",
+             readonly=True, fk="AD_User"),
+        dict(col="ZC_DateApproved", name="Date approved", ref=DATE, ddl="TIMESTAMP", readonly=True),
+        dict(col="Processed", name="Processed", ref=YESNO, ddl="CHAR(1) DEFAULT 'N' NOT NULL", default="N",
+             readonly=True, hidden=True),
+        dict(col="ZC_ApproveBudget", name="Approve Budget", ref=BUTTON, ddl="CHAR(1)", length=1,
+             process=PROC_BUDGET_APPROVE),
+    ]),
+    dict(id=1091503, table="ZC_BudgetLine", name="Budget Line", window=1091503, cols=[
+        dict(col="ZC_Budget_ID", name="Budget", ref=TABLEDIR, ddl="NUMERIC(10) NOT NULL", mandatory=True,
+             parent=True, readonly=True, fk="ZC_Budget"),
+        dict(col="C_Activity_ID", name="Cost centre", ref=TABLEDIR, ddl="NUMERIC(10) NOT NULL", mandatory=True,
+             fk="C_Activity"),
+        dict(col="Account_ID", name="Account", ref=SEARCH, refvalue=ACCOUNT_REF_VALUE, ddl="NUMERIC(10) NOT NULL",
+             mandatory=True, fk="C_ElementValue"),
+        dict(col="ZC_Amount", name="Annual amount", ref=AMOUNT, ddl="NUMERIC DEFAULT 0 NOT NULL", default="0",
+             mandatory=True),
+        dict(col="Description", name="Description", ref=STRING, ddl="VARCHAR(255)", length=255),
+        dict(col="Processed", name="Processed", ref=YESNO, ddl="CHAR(1) DEFAULT 'N' NOT NULL", default="N",
+             readonly=True, hidden=True),
+    ]),
 ]
 
 # --- columns added to iDempiere tables ----------------------------------------------------------------
@@ -123,6 +169,11 @@ EXTENSIONS = [  # (table, column spec)
     ("C_BPartner", dict(col="ZC_TCCExpiry", name="Tax compliance certificate expiry", ref=DATE, ddl="TIMESTAMP")),
     ("C_BPartner", dict(col="ZC_BlacklistReason", name="Blacklist reason", ref=TEXT, ddl="VARCHAR(255)", length=255,
                         help="Why the supplier is blacklisted, with the approving minute.")),
+    ("M_Requisition", dict(col="C_Activity_ID", name="Cost centre", ref=TABLEDIR, ddl="NUMERIC(10)",
+                           help="Cost centre whose budget the requisition is checked against.")),
+]
+EXTENSION_FIELDS = [  # (field id, tab id, table, column, seq): editable fields on iDempiere tabs
+    (1091954, 641, "M_Requisition", "C_Activity_ID", 75),
 ]
 
 # Supplier pre-qualification window: a tab on C_BPartner limited to vendors
@@ -151,6 +202,17 @@ MENUS = [  # (id, name, action, window or process, seq)
     (1091501, "Document Approval Rules", "W", 1091500, 10),
     (1091502, "Supplier Pre-qualification (Kenya)", "W", PREQUAL_WINDOW, 20),
     (1091503, "Audit Query Register", "W", 1091501, 30),
+    (1091504, "Budgets (Kenya)", "W", 1091503, 40),
+    (1091505, "Budget Status Report", "P", PROC_BUDGET_STATUS, 50),
+]
+
+# Windows with header and line tabs. Field IDs: field_base + position.
+MULTI_WINDOWS = [
+    dict(id=1091503, name="Budgets (Kenya)", wtype="M",
+         desc="Approved annual budgets by cost centre and account, used by the budget check",
+         tabs=[dict(id=1091503, table=1091502, name="Budget", level=0, seq=10, field_base=1091600),
+               dict(id=1091504, table=1091503, name="Budget Line", level=1, seq=20, field_base=1091640,
+                    link="ZC_Budget_ID")]),
 ]
 
 
@@ -163,7 +225,7 @@ def column_sql(w, cid, tid_expr, tn, c, el, element_ids):
                               AMOUNT: 22, INTEGER: 10}.get(c["ref"], 10))
     w(f"INSERT INTO AD_Column (AD_Column_ID,AD_Client_ID,AD_Org_ID,IsActive,Created,CreatedBy,Updated,UpdatedBy,Name,Description,Version,EntityType,ColumnName,AD_Table_ID,AD_Reference_ID,AD_Reference_Value_ID,AD_Val_Rule_ID,AD_Process_ID,FieldLength,DefaultValue,IsKey,IsParent,IsMandatory,IsUpdateable,IsIdentifier,SeqNo,IsTranslated,IsEncrypted,IsSelectionColumn,AD_Element_ID,IsAlwaysUpdateable,IsAutocomplete,IsAllowCopy,IsToolbarButton,IsSecure,IsPartitionKey,FKConstraintType,AD_Column_UU) "
       f"SELECT {cid},0,0,'Y',now(),100,now(),100,{name_expr},{q(c.get('help'))},0,{q(ENTITY)},{q(c['col'])},{tid_expr},{c['ref']},{q(c.get('refvalue'))},{q(c.get('valrule'))},{q(c.get('process'))},{length},{q(c.get('default'))},"
-      f"{q('Y' if c.get('key') else 'N')},'N',{q('Y' if c.get('mandatory') else 'N')},{q(updateable)},{q('Y' if c.get('identifier') else 'N')},{c.get('identifier', 0)},'N','N','N',{el},'N','N','Y',{q('N' if c['ref'] == BUTTON else 'Y')},'N','N',{q('D' if c.get('fk') else 'N')},{q(uu('column', tn + '.' + c['col']))} "
+      f"{q('Y' if c.get('key') else 'N')},{q('Y' if c.get('parent') else 'N')},{q('Y' if c.get('mandatory') else 'N')},{q(updateable)},{q('Y' if c.get('identifier') else 'N')},{c.get('identifier', 0)},'N','N','N',{el},'N','N','Y',{q('N' if c['ref'] == BUTTON else 'Y')},'N','N',{q('D' if c.get('fk') else 'N')},{q(uu('column', tn + '.' + c['col']))} "
       f"WHERE NOT EXISTS (SELECT 1 FROM AD_Column WHERE AD_Column_ID={cid});")
 
 
@@ -176,7 +238,7 @@ def field_sql(w, fid, tab_id, col_expr, key, seq, hidden=False, readonly=False, 
 def element_sql(w, eid, c):
     nm = c.get("name", c["col"])
     w(f"INSERT INTO AD_Element (AD_Element_ID,AD_Client_ID,AD_Org_ID,IsActive,Created,CreatedBy,Updated,UpdatedBy,ColumnName,EntityType,Name,PrintName,Description,AD_Element_UU) "
-      f"SELECT {eid},0,0,'Y',now(),100,now(),100,{q(c['col'])},{q(ENTITY)},{q(nm)},{q(nm)},{q(c.get('help'))},{q(uu('element', c['col']))} WHERE NOT EXISTS (SELECT 1 FROM AD_Element WHERE AD_Element_ID={eid});")
+      f"SELECT {eid},0,0,'Y',now(),100,now(),100,{q(c['col'])},{q(ENTITY)},{q(nm)},{q(nm)},{q(c.get('help'))},{q(uu('element', c['col']))} WHERE NOT EXISTS (SELECT 1 FROM AD_Element WHERE AD_Element_ID={eid} OR UPPER(ColumnName)=UPPER({q(c['col'])}));")
 
 
 def core_col(table, column):
@@ -205,7 +267,7 @@ def main():
     for sid, name, value, desc in SYSCONFIG:
         w(f"INSERT INTO AD_SysConfig (AD_SysConfig_ID,AD_Client_ID,AD_Org_ID,IsActive,Created,CreatedBy,Updated,UpdatedBy,Name,Value,Description,EntityType,ConfigurationLevel,AD_SysConfig_UU) "
           f"SELECT {sid},0,0,'Y',now(),100,now(),100,{q(name)},{q(value)},{q(desc)},{q(ENTITY)},'C',{q(uu('sysconfig', name))} WHERE NOT EXISTS (SELECT 1 FROM AD_SysConfig WHERE AD_SysConfig_ID={sid});")
-    all_windows = WINDOWS + [dict(id=PREQUAL_WINDOW, name="Supplier Pre-qualification (Kenya)", wtype="M",
+    all_windows = WINDOWS + MULTI_WINDOWS + [dict(id=PREQUAL_WINDOW, name="Supplier Pre-qualification (Kenya)", wtype="M",
                                   desc="Pre-qualification status, tax compliance certificate and blacklist of suppliers")]
     for win in all_windows:
         w(f"INSERT INTO AD_Window (AD_Window_ID,AD_Client_ID,AD_Org_ID,IsActive,Created,CreatedBy,Updated,UpdatedBy,Name,Description,WindowType,IsSOTrx,EntityType,IsDefault,IsBetaFunctionality,AD_Window_UU) "
@@ -241,8 +303,9 @@ def main():
             elif cn in CORE_ELEMENTS or cn in _pg.CORE_ELEMENTS or c.get("std"):
                 el = f"(SELECT AD_Element_ID FROM AD_Element WHERE ColumnName={q(cn)} AND AD_Client_ID=0)"
             else:
+                # an element of the same name may already exist (for example from the payroll plug-in)
                 element_sql(w, cid, c)
-                el = str(cid)
+                el = f"(SELECT AD_Element_ID FROM AD_Element WHERE UPPER(ColumnName)=UPPER({q(cn)}))"
             elements[cn] = el
             col_ids[(tid, cn)] = cid
             column_sql(w, cid, tid, tn, c, el, elements)
@@ -252,8 +315,12 @@ def main():
     for i, (tn, c) in enumerate(EXTENSIONS):
         cid = 1091900 + i
         w(f"ALTER TABLE {tn} ADD COLUMN IF NOT EXISTS {c['col']} {c['ddl'].replace(' NOT NULL', '')};")
-        element_sql(w, cid, c)
-        column_sql(w, cid, f"(SELECT AD_Table_ID FROM AD_Table WHERE TableName={q(tn)})", tn, c, str(cid), elements)
+        if c["col"] in CORE_ELEMENTS:
+            el = f"(SELECT AD_Element_ID FROM AD_Element WHERE ColumnName={q(c['col'])} AND AD_Client_ID=0)"
+        else:
+            element_sql(w, cid, c)
+            el = str(cid)
+        column_sql(w, cid, f"(SELECT AD_Table_ID FROM AD_Table WHERE TableName={q(tn)})", tn, c, el, elements)
         col_ids[(tn, c["col"])] = cid
     w("")
     w("-- foreign keys")
@@ -287,6 +354,28 @@ def main():
     w("-- read-only pre-qualification fields on the Business Partner window's Vendor tab")
     for i, cn in enumerate(VENDOR_TAB_FIELDS):
         field_sql(w, 1091950 + i, VENDOR_TAB, col_ids[("C_BPartner", cn)], cn, 900 + 10 * i, readonly=True)
+    for fid2, tab_id, tn, cn, seqno in EXTENSION_FIELDS:
+        field_sql(w, fid2, tab_id, col_ids[(tn, cn)], cn, seqno)
+    w("")
+    # header and line windows
+    for win in MULTI_WINDOWS:
+        for tab in win["tabs"]:
+            t = next(x for x in TABLES if x["id"] == tab["table"])
+            link = col_ids[(t["id"], tab["link"])] if tab.get("link") else "NULL"
+            w(f"INSERT INTO AD_Tab (AD_Tab_ID,AD_Client_ID,AD_Org_ID,IsActive,Created,CreatedBy,Updated,UpdatedBy,Name,AD_Table_ID,AD_Window_ID,SeqNo,TabLevel,IsSingleRow,IsTranslationTab,IsReadOnly,AD_Column_ID,HasTree,IsSortTab,EntityType,IsInsertRecord,IsAdvancedTab,TreeDisplayedOn,AD_Tab_UU) "
+              f"SELECT {tab['id']},0,0,'Y',now(),100,now(),100,{q(tab['name'])},{t['id']},{win['id']},{tab['seq']},{tab['level']},{q('Y' if tab['level'] == 0 else 'N')},'N','N',{link},'N','N',{q(ENTITY)},'Y','N','B',{q(uu('tab', str(tab['id'])))} WHERE NOT EXISTS (SELECT 1 FROM AD_Tab WHERE AD_Tab_ID={tab['id']});")
+            seq = 0
+            for ci, c in enumerate(std_cols(t) + t["cols"]):
+                hidden = bool(c.get("hidden")) or c["col"] == tab.get("link")
+                if not hidden:
+                    seq += 10
+                field_sql(w, tab["field_base"] + ci, tab["id"], col_ids[(t["id"], c["col"])], c["col"], seq,
+                          hidden=hidden, same_line=c["col"] == "AD_Org_ID")
+    w("")
+    for ppid, pid, cn, name, ref, mand, seqno, default in PROCESS_PARAMS:
+        w(f"INSERT INTO AD_Process_Para (AD_Process_Para_ID,AD_Client_ID,AD_Org_ID,IsActive,Created,CreatedBy,Updated,UpdatedBy,Name,AD_Process_ID,SeqNo,AD_Reference_ID,IsRange,FieldLength,IsMandatory,ColumnName,IsCentrallyMaintained,EntityType,IsEncrypted,DefaultValue,AD_Element_ID,AD_Process_Para_UU) "
+          f"SELECT {ppid},0,0,'Y',now(),100,now(),100,{q(name)},{pid},{seqno},{ref},'N',10,{q('Y' if mand else 'N')},{q(cn)},'N',{q(ENTITY)},'N',{q(default)},"
+          f"(SELECT AD_Element_ID FROM AD_Element WHERE ColumnName={q(cn)} AND AD_Client_ID=0),{q(uu('para', str(ppid)))} WHERE NOT EXISTS (SELECT 1 FROM AD_Process_Para WHERE AD_Process_Para_ID={ppid});")
     w("")
     # menu
     w(f"INSERT INTO AD_Menu (AD_Menu_ID,AD_Client_ID,AD_Org_ID,IsActive,Created,CreatedBy,Updated,UpdatedBy,Name,Description,IsSummary,IsSOTrx,IsReadOnly,EntityType,AD_Menu_UU) "
@@ -302,6 +391,8 @@ def main():
     w("")
     w("-- one rule per kind of document in each client")
     w("CREATE UNIQUE INDEX IF NOT EXISTS ZC_DocControl_Kind ON ZC_DocControl (AD_Client_ID, DocBaseType) WHERE IsActive='Y';")
+    w("-- one line per cost centre and account in a budget")
+    w("CREATE UNIQUE INDEX IF NOT EXISTS ZC_BudgetLine_Key ON ZC_BudgetLine (ZC_Budget_ID, C_Activity_ID, Account_ID);")
     print("\n".join(out))
 
 

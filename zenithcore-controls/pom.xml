@@ -10,7 +10,7 @@
   <packaging>jar</packaging>
 
   <name>ZenithCore Controls</name>
-  <description>Finance, procurement and stores control rules for ZenithCore: second-person approval, supplier pre-qualification gate, three-way match, audit-query closure.</description>
+  <description>Finance, procurement and stores control rules for ZenithCore: second-person approval, supplier pre-qualification gate, three-way match, audit-query closure, budget check.</description>
 
   <properties>
     <maven.compiler.release>17</maven.compiler.release>
