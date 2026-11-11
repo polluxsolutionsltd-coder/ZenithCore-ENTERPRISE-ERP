@@ -58,6 +58,15 @@ Invalid) and the user sees every reason at once. Reversals are not checked.
     after payment. This is a working register; the iTax upload layouts wait on CRIT-02.
   - Set the accounting schema not to allow negative postings, so deduction lines post as credits to the payable
     accounts rather than negative debits.
+- **Stores controls** (client setting `ZC_STORES_CONTROL` = Y; write-off approval from `ZC_WRITEOFF_APPROVAL_FROM`).
+  - Each store (warehouse) has a **Custodian** and a **Deputy custodian** (Warehouse window). Only they can complete
+    a goods received note or shipment for the store, move stock out of it, or prepare its stock counts and
+    adjustments. A store without a custodian cannot be received into, issued from or adjusted.
+  - **Stock Adjustment Reasons** window: codes such as count variance, damaged, expired, theft or loss, obsolete
+    (write-offs) and issue to cost centre, data correction (not write-offs). Every count difference and every
+    internal-use line needs a reason (Reason field on the count and internal-use lines).
+  - Write-offs (stock removed for a write-off reason, at current cost) at or above the set value must be completed
+    by someone who is neither the preparer nor a custodian of the store. Cost adjustment documents are not affected.
 - **Audit Query Register** window: reference, title, raised by (external or internal audit, board, KRA),
   financial year, risk, finding, recommendation, responsible person, due date, management response, status.
   **Close Audit Query** needs the management response, at least one evidence file attached, and a closer who
@@ -88,6 +97,12 @@ Verified on 10 November 2026 in iDempiere 13 (GardenWorld), through the web UI:
   100,000.00. Posted: expense 100,000, input tax 7,000, payable 100,000, withholding tax 5,000 and withholding VAT
   2,000 on their accounts. The Withholding Tax Register for Nov-26 listed both with totals. Thresholds, non-resident
   rates, exemptions and unregistered suppliers are covered by the rule tests, not yet in the UI.
+- Stores, 10 November 2026 (HQ Warehouse, custodian GardenUser, write-off approval from 100.00): count ZC-T12 with a
+  gain and no reason was refused; count ZC-T13 (2 Oak Trees damaged, 104.19 at average cost) was refused for
+  GardenUser ("writes off 104.19 ... must be approved by someone other than the preparer and the custodians") and
+  completed by GardenAdmin; count ZC-T14 prepared by GardenAdmin was refused (not prepared by the custodian);
+  receipt ZC-T15 was refused for GardenAdmin and completed by GardenUser. Movements and deputies are covered by the
+  rule tests, not yet in the UI.
 - Not yet exercised in the UI: blacklisted supplier, supplier payments (gate and budget), LPO completion under
   the gate, requisitions and supplier invoices not from an LPO under the budget check (same code paths, covered
   by the rule tests).
@@ -104,7 +119,8 @@ Deploy like the payroll plug-in (both jars into `plugins/`, `bundles.info`, clea
 SQL by hand). On GardenWorld only: `migration/postgresql/demo-garden-world-access.sql` and
 `testdata/garden-world-controls.sql` (rules, switches, sample suppliers, draft documents, an audit query) and
 `testdata/garden-world-budget.sql` (cost centres, a budget to approve, draft LPOs and an invoice) and
-`testdata/garden-world-withholding.sql` (payable charges, types and rates, an LSO and its invoice).
+`testdata/garden-world-withholding.sql` (payable charges, types and rates, an LSO and its invoice) and
+`testdata/garden-world-stores.sql` (custodian, reasons, three counts and a receipt).
 
 ## Notes for developers
 

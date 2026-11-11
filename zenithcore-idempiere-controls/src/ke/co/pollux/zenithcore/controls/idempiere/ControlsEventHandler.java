@@ -13,6 +13,13 @@ import org.compiere.model.MBPartner;
 import org.compiere.model.MDocType;
 import org.compiere.model.MInvoice;
 import org.compiere.model.MInvoiceLine;
+import org.compiere.model.MCost;
+import org.compiere.model.MInventory;
+import org.compiere.model.MInventoryLine;
+import org.compiere.model.MLocator;
+import org.compiere.model.MMovement;
+import org.compiere.model.MMovementLine;
+import org.compiere.model.MWarehouse;
 import org.compiere.model.MOrder;
 import org.compiere.model.MOrderLine;
 import org.compiere.model.MPayment;
@@ -31,6 +38,7 @@ import org.osgi.service.event.Event;
 import ke.co.pollux.zenithcore.controls.BudgetCheck;
 import ke.co.pollux.zenithcore.controls.ControlResult;
 import ke.co.pollux.zenithcore.controls.SecondPersonApproval;
+import ke.co.pollux.zenithcore.controls.StoresControl;
 import ke.co.pollux.zenithcore.controls.SupplierGate;
 import ke.co.pollux.zenithcore.controls.ThreeWayMatch;
 
@@ -59,7 +67,7 @@ public class ControlsEventHandler extends AbstractEventHandler {
     /** Documents checked, with the column holding their amount for approval thresholds. */
     static final Map<String, String> DOCUMENTS = Map.of("GL_Journal", "TotalDr", "C_Invoice", "GrandTotal",
             "C_Payment", "PayAmt", "C_Order", "GrandTotal", "M_Requisition", "TotalLines", "M_Inventory", "",
-            "M_Movement", "", "C_BankStatement", "StatementDifference");
+            "M_Movement", "", "C_BankStatement", "StatementDifference", "M_InOut", "");
 
     @Override
     protected void initialize() {
@@ -153,7 +161,12 @@ public class ControlsEventHandler extends AbstractEventHandler {
             results.add(ThreeWayMatch.check(matchLines((MInvoice) po), tolerance));
         }
 
-        // 4. Budget check
+        // 4. Stores controls
+        if (MSysConfig.getBooleanValue("ZC_STORES_CONTROL", false, clientId)) {
+            results.addAll(storesChecks(po, label, base, dt));
+        }
+
+        // 5. Budget check
         boolean budgetDoc = "M_Requisition".equals(table) || ("C_Order".equals(table) && !po.get_ValueAsBoolean("IsSOTrx"))
                 || ("C_Invoice".equals(table) && MDocType.DOCBASETYPE_APInvoice.equals(base))
                 || ("C_Payment".equals(table) && !po.get_ValueAsBoolean("IsReceipt") && po.get_ValueAsInt("C_Charge_ID") > 0
@@ -170,6 +183,60 @@ public class ControlsEventHandler extends AbstractEventHandler {
             }
         }
         return results;
+    }
+
+    private static List<ControlResult> storesChecks(PO po, String label, String base, MDocType dt) {
+        List<ControlResult> out = new ArrayList<>();
+        int user = Env.getAD_User_ID(po.getCtx());
+        switch (po.get_TableName()) {
+            case "M_InOut" -> out.add(StoresControl.custodian(store(po.get_ValueAsInt("M_Warehouse_ID"), po.get_TrxName()), user,
+                    po.get_ValueAsBoolean("IsSOTrx") ? "issue from" : "receive into"));
+            case "M_Movement" -> {
+                java.util.Set<Integer> from = new java.util.TreeSet<>();
+                for (MMovementLine l : ((MMovement) po).getLines(true)) {
+                    from.add(MLocator.get(l.getM_Locator_ID()).getM_Warehouse_ID());
+                }
+                for (int w : from) {
+                    out.add(StoresControl.custodian(store(w, po.get_TrxName()), user, "move stock out of"));
+                }
+            }
+            case "M_Inventory" -> {
+                String sub = dt == null ? null : dt.getDocSubTypeInv();
+                if (!MDocType.DOCSUBTYPEINV_PhysicalInventory.equals(sub) && !MDocType.DOCSUBTYPEINV_InternalUseInventory.equals(sub)) {
+                    break; // cost adjustments are a finance document
+                }
+                boolean count = MDocType.DOCSUBTYPEINV_PhysicalInventory.equals(sub);
+                List<StoresControl.AdjustmentLine> lines = new ArrayList<>();
+                for (MInventoryLine l : ((MInventory) po).getLines(true)) {
+                    BigDecimal change = count ? l.getQtyCount().subtract(l.getQtyBook()) : l.getQtyInternalUse().negate();
+                    int reasonId = l.get_ValueAsInt("ZC_AdjustmentReason_ID");
+                    String code = null;
+                    boolean writeOff = false;
+                    if (reasonId > 0) {
+                        PO r = org.compiere.model.MTable.get(po.getCtx(), "ZC_AdjustmentReason").getPO(reasonId, po.get_TrxName());
+                        code = r.get_ValueAsString("Value");
+                        writeOff = r.get_ValueAsBoolean("ZC_IsWriteOff");
+                    }
+                    BigDecimal cost = change.signum() == 0 ? BigDecimal.ZERO
+                            : nz(MCost.getCurrentCost(MProduct.get(l.getM_Product_ID()), l.getM_AttributeSetInstance_ID(), po.get_TrxName()));
+                    lines.add(new StoresControl.AdjustmentLine(l.getLine(), MProduct.get(l.getM_Product_ID()).getName(), change,
+                            cost, code, writeOff));
+                }
+                BigDecimal from = new BigDecimal(MSysConfig.getValue("ZC_WRITEOFF_APPROVAL_FROM", "0", po.getAD_Client_ID()).trim());
+                out.add(StoresControl.adjustment(label, store(po.get_ValueAsInt("M_Warehouse_ID"), po.get_TrxName()), lines,
+                        po.getCreatedBy(), user, from));
+            }
+            default -> {
+                // not a stores document
+            }
+        }
+        return out;
+    }
+
+    private static StoresControl.Store store(int warehouseId, String trx) {
+        MWarehouse w = MWarehouse.get(warehouseId);
+        return new StoresControl.Store(w.getName(), w.get_ValueAsInt("ZC_CustodianUser_ID"),
+                w.get_ValueAsInt("ZC_DeputyCustodianUser_ID"));
     }
 
     private static Timestamp documentTimestamp(PO po) {
