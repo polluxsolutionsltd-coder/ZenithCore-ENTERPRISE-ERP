@@ -185,6 +185,24 @@ Invalid) and the user sees every reason at once. Reversals are not checked.
       assets found elsewhere in the register, locks the verification and prints the exceptions.
     - **Print Exceptions** gives four lists: not found, found elsewhere, poor or unserviceable for the board of
       survey, and not in the register ([sample](../docs/images/asset-verification-exceptions.png)).
+- **Kenya setup for a new institution** (data in [setup/kenya](setup/kenya/README.md), checked by `SetupDataTest`):
+  1. As System: **Initial Tenant Setup** with `setup/kenya/AccountingKE.csv` as the chart of accounts file,
+     currency KES, country Kenya, and Activity Accounting ticked (cost centres for budgets). This creates the 54
+     default accounts.
+  2. As the tenant administrator:
+     - **Import File Loader** with `AccountingKE.csv` and the format *Accounting - Accounts*;
+     - then **Import Accounts** (Tenant and Element set, Update Default Accounts off) for the whole chart and its
+       tree.
+  3. **Apply Kenya Setup** (menu) adds:
+     - VAT 16%, zero rated and exempt, on VAT output tax 21610 and VAT input tax 12610;
+     - the charges ZenithCore uses (bank and M-Pesa charges, unidentified receipts, opening balance clearing, the
+       withholding payables);
+     - withholding types with dated rates.
+     It is safe to run again, and it reports any rate that differs from the file.
+  4. Open the periods (Period Control), and deactivate the "Standard" tax that Initial Tenant Setup creates if it is
+     not used.
+  Shipped as data files plus a process rather than a 2Pack, so rates are reviewable, dated and re-runnable. A 2Pack
+  can still be exported from a configured tenant to clone it.
 - **Audit Query Register** window: reference, title, raised by (external or internal audit, board, KRA),
   financial year, risk, finding, recommendation, responsible person, due date, management response, status.
   **Close Audit Query** needs the management response, at least one evidence file attached, and a closer who
@@ -278,6 +296,15 @@ Verified on 10 November 2026 in iDempiere 13 (GardenWorld), through the web UI:
   - With SuperUser as verifier and the tag corrected to GW-000123-0, it completed: 2 found, 1 moved (the projector is
     now in the Boardroom in the register), 1 not found (register unchanged), 1 not in the register, 1 for the board
     of survey. Condition and date were recorded on the assets.
+- Kenya setup, 10 November 2026: new tenant "JKUAT IP (test)" created as above.
+  - Initial Tenant Setup: 54 default accounts, schema in KES.
+  - Import Accounts: 195 accounts imported, 42 summary and 23 control; the CSV header line is rejected as expected.
+  - Apply Kenya Setup added 19 records (3 VAT categories, 3 VAT rates, 5 charges, 3 withholding types, 5 rates); run
+    again, it added 0.
+  - Supplier invoice KE-T1 (bank charges 1,000.00 plus VAT 16%) posted Dr 53940 1,000.00, Dr 12610 VAT input
+    160.00, Cr 21100 1,160.00.
+  - The chart check in CI caught five account names with commas, which iDempiere's setup would have turned into
+    spaces; renamed.
 - Not yet exercised in the UI: blacklisted supplier, supplier payments (gate and budget), LPO completion under
   the gate, requisitions and supplier invoices not from an LPO under the budget check (same code paths, covered
   by the rule tests).

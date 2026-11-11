@@ -1,0 +1,6 @@
+name,account,tax_category,description
+Bank and M-Pesa charges,53940,Exempt,"Bank ledger fees and M-Pesa tariffs; use in Statement Matching Rules"
+Unidentified receipts,21910,Exempt,"Money in not yet identified; set on statement lines and cleared monthly"
+Opening balance clearing,15100,Exempt,"Clearing charge for the Opening Balances workbench"
+Withholding income tax payable,21620,Exempt,"Payable charge of the withholding income tax types"
+Withholding VAT payable,21630,Exempt,"Payable charge of the withholding VAT type"

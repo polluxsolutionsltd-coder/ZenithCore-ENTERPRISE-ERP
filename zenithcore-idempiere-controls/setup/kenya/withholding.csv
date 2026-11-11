@@ -1,0 +1,6 @@
+type,name,kind,charge,non_resident,rate,monthly_threshold,valid_from,source
+PROF,"Management, professional and training fees",W,Withholding income tax payable,N,5,24000,2023-11-08,"KRA Withholding Income Tax guide, Nov 2023; PwC Worldwide Tax Summaries Kenya, reviewed 17 Jul 2026"
+PROF,"Management, professional and training fees",W,Withholding income tax payable,Y,20,,2023-11-08,"KRA Withholding Income Tax guide, Nov 2023; PwC Worldwide Tax Summaries Kenya, reviewed 17 Jul 2026"
+CONT,Contractual fees,W,Withholding income tax payable,N,3,24000,2023-11-08,"KRA Withholding Income Tax guide, Nov 2023; PwC Worldwide Tax Summaries Kenya, reviewed 17 Jul 2026"
+CONT,Contractual fees,W,Withholding income tax payable,Y,20,,2023-11-08,"KRA Withholding Income Tax guide, Nov 2023; PwC Worldwide Tax Summaries Kenya, reviewed 17 Jul 2026"
+WHVAT,Withholding VAT,V,Withholding VAT payable,N,2,,2024-12-01,"KRA Overview of Withholding VAT, Dec 2024 (2% of the taxable value)"
