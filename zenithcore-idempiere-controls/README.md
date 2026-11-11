@@ -118,6 +118,25 @@ Invalid) and the user sees every reason at once. Reversals are not checked.
     plus receipts not yet credited, against the cash book (GL balance of the account's asset and in-transit
     accounts), with the unexplained difference and signature blocks. Warns if the GL accounts are shared with another
     bank account or documents are unposted. Sample: [docs/images/bank-reconciliation.png](../docs/images/bank-reconciliation.png).
+- **Opening Balances** window (go-live).
+  - Header: name, opening balance date, source and audit reference, and a **clearing charge** whose account must
+    end at nil. Attach the legacy trial balance and sub-ledger CSV files (ZenithCore templates in
+    `docs/phase1/opening-balance-templates/`) and press **Load Attached Files**: lines are mapped to the new chart
+    from the file, the same code or an earlier mapping; customer, supplier and bank items take their own control
+    account.
+  - **Trial Balance** tab: legacy balance, adjustment and its reason, opening balance, audited balance, check result.
+    **Sub-ledger Items** tab: customer invoices (AR), supplier invoices and credit notes (AP), bank and M-Pesa
+    balances (BK), stock (ST), fixed assets (FA).
+  - **Check and Reconcile**: every line mapped to a posting account, every adjustment with a reason, opening equal to
+    audited to the cent, debits equal to credits, every control account with a balance equal to its sub-ledger items,
+    items with a partner and a unique reference. Notes each problem on its line and prints the reconciliation PDF
+    (sample: [docs/images/opening-balances.png](../docs/images/opening-balances.png)).
+  - **Sign Off** by someone other than the preparer, only when the checks pass; locks everything.
+  - **Post Opening Balances**, once: an opening invoice or credit memo per AR/AP item (original date for ageing,
+    posted on the opening date, one line on the clearing charge, no ZenithCore procurement or withholding controls),
+    an opening bank statement per BK item, and the opening journal (control accounts with items go to the clearing
+    account). One transaction: if any document fails, nothing is posted. Stock and assets are loaded with iDempiere's
+    own imports against the clearing account; after posting, Check and Reconcile shows the clearing balance.
 - **Audit Query Register** window: reference, title, raised by (external or internal audit, board, KRA),
   financial year, risk, finding, recommendation, responsible person, due date, management response, status.
   **Close Audit Query** needs the management response, at least one evidence file attached, and a closer who
@@ -178,6 +197,16 @@ Verified on 10 November 2026 in iDempiere 13 (GardenWorld), through the web UI:
   Receipt ZC-R4 repeating QK12ABC3DE in lower case was refused. Bank Reconciliation Statement at 10 Nov: bank
   7,017.00, unpresented 12,000.00 (ZC-P1), uncredited 700.00 (ZC-R3), adjusted -4,283.00, cash book -4,283.00,
   reconciled. For bank account 1234 it warned that the GL accounts are shared.
+- Opening balances, 10 November 2026 ("GardenWorld go-live (test)" at 1 Nov 2026, prepared by GardenAdmin): the two
+  test CSV files were attached in the window and loaded (9 trial balance lines, 5 items). Check and Reconcile found
+  the three planted problems: adjustment without a reason (1101), legacy account 1999 not mapped, payables
+  sub-ledger 325,000.00 against 310,000.00 in the trial balance. With the reason entered, 1999 mapped to 15300 and the
+  missing credit note CN/12 added, it reconciled (debits and credits 2,442,500.00). GardenAdmin's sign-off was refused
+  (preparer); SuperUser signed off. The first post stopped with nothing written (no purchase price list; fixed to use
+  any price list in the base currency) and then posted: invoices 200003 and 200004, supplier invoices 10000010 and
+  10000011, credit memo 10000012 (original dates, accounted 1 Nov), an opening KCB statement of 850,000.00 and journal
+  1008 (6 lines). A second post was refused. After the accounting processor ran, 11190 showed 850,000.00, 12110
+  392,500.00, 21100 -310,000.00 and the clearing account 19990 nil.
 - Not yet exercised in the UI: blacklisted supplier, supplier payments (gate and budget), LPO completion under
   the gate, requisitions and supplier invoices not from an LPO under the budget check (same code paths, covered
   by the rule tests).
@@ -200,7 +229,9 @@ SQL by hand). On GardenWorld only: `migration/postgresql/demo-garden-world-acces
 `testdata/garden-world-inspection.sql` (inspection on, quarantine and rejected locators, an LPO, two receipts, an
 invoice, an internal use and an inspection) and `testdata/garden-world-bank.sql` (matching on, an M-Pesa test account
 with its own GL accounts, a statement rule, a test loader format, receipts and a payment; load
-`testdata/garden-world-mpesa-statement.csv` with the Import File Loader).
+`testdata/garden-world-mpesa-statement.csv` with the Import File Loader) and
+`testdata/garden-world-opening-balances.sql` (clearing account and charge, a KCB test account, an opening balance
+record; attach `testdata/opening-trial-balance.csv` and `testdata/opening-sub-ledgers.csv`).
 
 ## Notes for developers
 

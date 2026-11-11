@@ -1,0 +1,6 @@
+type,partner_code,reference,date,amount,control_account,description
+BK,KCB-TEST-001,Statement 31 Oct 2026,2026-10-31,850000.00,,KCB Main balance per statement
+AR,C&W,INV-0091,2026-08-15,250000.00,,Rent Q3 2026
+AR,JoeBlock,INV-0102,2026-09-30,142500.00,,Service charge Sept 2026
+AP,Patio,MH/77,2026-10-05,250000.00,,Workshop tools
+AP,Patio,SFI/2207,2026-10-20,75000.00,,Cleaning materials

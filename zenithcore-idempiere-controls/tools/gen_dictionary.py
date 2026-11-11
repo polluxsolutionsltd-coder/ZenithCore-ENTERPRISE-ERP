@@ -13,6 +13,9 @@ ID range: 1091500-1091999 in every dictionary table (payroll uses 1090000-109149
   fields of new tabs                                     1091500 + 40*tab + position
   columns added to iDempiere tables (and their elements) 1091900 + n
   fields added to iDempiere tabs                         1091950 + n
+Second block 1092000-1092999, for tables added once the first block was full:
+  columns of tables with col_base, and their elements     col_base + position (1092000 + 40*k)
+  fields of tabs with field_base >= 1092200               field_base + position
 UUIDs are derived from names, so the output is deterministic. APPEND ONLY: add at the end of a list.
 
     python3 tools/gen_dictionary.py > migration/postgresql/202611100800_ZC-0004_Controls.sql
@@ -40,7 +43,7 @@ def uu(kind, key):
 
 CORE_ELEMENTS = {"Value", "Name", "Description", "Processed", "DocBaseType", "C_Year_ID", "C_Activity_ID", "Account_ID",
                  "C_Charge_ID", "ValidFrom", "ValidTo", "C_Period_ID", "M_InOut_ID", "M_InOutLine_ID", "M_Product_ID",
-                 "M_Movement_ID", "C_BankAccount_ID"}
+                 "M_Movement_ID", "C_BankAccount_ID", "C_Invoice_ID", "DateDoc", "Line", "C_BankStatement_ID"}
 ACCOUNT_REF_VALUE = 362  # C_ElementValue (trx): posting accounts only
 NUMBER = 22
 QUANTITY = 29
@@ -51,6 +54,7 @@ REF_WHT_KIND = 1091504
 REF_COUNT_STATUS = 1091505
 REF_LOCATOR_USE, REF_INSPECTION_STATUS, REF_REJECT_REASON = 1091506, 1091507, 1091508
 REF_STATEMENT_MATCH = 1091509
+REF_OB_STATUS, REF_OB_ITEM_TYPE = 1091510, 1091511
 REFERENCES = [
     (REF_PREQUAL, "ZC Pre-qualification Status", [("P", "Pending"), ("Q", "Pre-qualified"), ("S", "Suspended"),
                                                  ("B", "Blacklisted")]),
@@ -68,6 +72,10 @@ REFERENCES = [
     (REF_STATEMENT_MATCH, "ZC Statement Match", [("REF", "Matched by reference"), ("CHG", "Charge by rule"),
                                                  ("AMT", "Matched by amount and date"), ("NEW", "New receipt created"),
                                                  ("REV", "To review"), ("NON", "Not matched")]),
+    (REF_OB_STATUS, "ZC Opening Balance Status", [("DR", "Drafted"), ("RC", "Reconciled"), ("SO", "Signed off"),
+                                                  ("PO", "Posted")]),
+    (REF_OB_ITEM_TYPE, "ZC Opening Item Type", [("AR", "Customer invoice"), ("AP", "Supplier invoice"), ("ST", "Stock"),
+                                                ("FA", "Fixed asset"), ("BK", "Bank or M-Pesa balance")]),
 ]
 
 # --- processes -------------------------------------------------------------------------------------
@@ -77,6 +85,7 @@ PROC_WHT_REGISTER = 1091503
 PROC_COUNT_SUBMIT, PROC_COUNT_VARIANCE = 1091504, 1091505
 PROC_INSPECTION_LOAD, PROC_INSPECTION_COMPLETE = 1091506, 1091507
 PROC_MATCH_STATEMENT, PROC_BANK_REC = 1091508, 1091509
+PROC_OB_LOAD, PROC_OB_CHECK, PROC_OB_SIGNOFF, PROC_OB_POST = 1091510, 1091511, 1091512, 1091513
 PROCESSES = [
     (PROC_CLOSE_AQ, "ZC_AuditQueryClose", "Close Audit Query",
      "Closes an audit query once the management response and evidence are recorded. The person responsible for "
@@ -116,6 +125,21 @@ PROCESSES = [
      "Balance per bank statement, payments not yet presented, receipts not yet credited and balance per cash book "
      "for a bank or M-Pesa account at a date. PDF.",
      "ke.co.pollux.zenithcore.controls.idempiere.process.BankReconciliationReport"),
+    (PROC_OB_LOAD, "ZC_OBLoad", "Load Attached Files",
+     "Loads the trial balance and sub-ledger CSV files attached to this record (ZenithCore templates), replacing earlier "
+     "lines, and maps legacy codes to accounts.",
+     "ke.co.pollux.zenithcore.controls.idempiere.process.OpeningBalanceLoad"),
+    (PROC_OB_CHECK, "ZC_OBCheck", "Check and Reconcile",
+     "Checks mapping, adjustments, audited figures, balance and sub-ledgers against control accounts, notes each "
+     "problem on its line, and prints the reconciliation for sign-off. PDF.",
+     "ke.co.pollux.zenithcore.controls.idempiere.process.OpeningBalanceCheck"),
+    (PROC_OB_SIGNOFF, "ZC_OBSignOff", "Sign Off",
+     "Signs off the reconciled opening balances and locks them. The preparer cannot sign off.",
+     "ke.co.pollux.zenithcore.controls.idempiere.process.OpeningBalanceSignOff"),
+    (PROC_OB_POST, "ZC_OBPost", "Post Opening Balances",
+     "Creates and completes the opening customer and supplier invoices and the opening journal. Only after sign-off; "
+     "only once.",
+     "ke.co.pollux.zenithcore.controls.idempiere.process.OpeningBalancePost"),
 ]
 
 PROCESS_PARAMS = [  # (id, process, column, name, reference, mandatory, seq, default)
@@ -312,6 +336,81 @@ TABLES = [
              help="Leave empty for all accounts."),
         dict(col="Description", name="Description", ref=STRING, ddl="VARCHAR(255)", length=255),
     ]),
+    dict(id=1091510, table="ZC_OpeningBalance", name="Opening Balance", window=1091509, col_base=1092000, cols=[
+        dict(col="Name", name="Name", ref=STRING, ddl="VARCHAR(60) NOT NULL", length=60, mandatory=True, identifier=1),
+        dict(col="ZC_CutoverDate", name="Opening balance date", ref=DATE, ddl="TIMESTAMP NOT NULL", mandatory=True,
+             help="Go-live date; the opening journal and invoices are posted on this date."),
+        dict(col="Description", name="Source and audit reference", ref=TEXT, ddl="VARCHAR(2000)", length=2000,
+             help="Legacy system, report run, audited financial statements and auditor's opinion date."),
+        dict(col="C_Charge_ID", name="Clearing charge", ref=TABLEDIR, ddl="NUMERIC(10) NOT NULL", mandatory=True,
+             fk="C_Charge", help="Charge whose account is the opening-balance clearing account. It must end at nil."),
+        dict(col="ZC_OBStatus", name="Status", ref=LIST, refvalue=REF_OB_STATUS, ddl="CHAR(2) DEFAULT 'DR' NOT NULL",
+             length=2, default="DR", mandatory=True, readonly=True),
+        dict(col="ZC_TotalDebit", name="Total debits", ref=AMOUNT, ddl="NUMERIC", readonly=True),
+        dict(col="ZC_TotalCredit", name="Total credits", ref=AMOUNT, ddl="NUMERIC", readonly=True),
+        dict(col="ZC_SignedOffUser_ID", name="Signed off by", ref=TABLE, refvalue=AD_USER_REF, ddl="NUMERIC(10)",
+             readonly=True, fk="AD_User"),
+        dict(col="ZC_DateSignedOff", name="Date signed off", ref=DATETIME, ddl="TIMESTAMP", readonly=True),
+        dict(col="GL_Journal_ID", name="Opening journal", ref=TABLEDIR, ddl="NUMERIC(10)", readonly=True,
+             fk="GL_Journal"),
+        dict(col="Processed", name="Processed", ref=YESNO, ddl="CHAR(1) DEFAULT 'N' NOT NULL", default="N",
+             readonly=True, hidden=True),
+        dict(col="ZC_LoadFiles", name="Load Attached Files", ref=BUTTON, ddl="CHAR(1)", length=1, process=PROC_OB_LOAD),
+        dict(col="ZC_CheckOB", name="Check and Reconcile", ref=BUTTON, ddl="CHAR(1)", length=1, process=PROC_OB_CHECK,
+             always=True),
+        dict(col="ZC_SignOffOB", name="Sign Off", ref=BUTTON, ddl="CHAR(1)", length=1, process=PROC_OB_SIGNOFF),
+        dict(col="ZC_PostOB", name="Post Opening Balances", ref=BUTTON, ddl="CHAR(1)", length=1, process=PROC_OB_POST,
+             always=True),
+    ]),
+    dict(id=1091511, table="ZC_OpeningBalanceLine", name="Opening Trial Balance Line", window=1091509, col_base=1092040,
+         cols=[
+        dict(col="ZC_OpeningBalance_ID", name="Opening balance", ref=TABLEDIR, ddl="NUMERIC(10) NOT NULL",
+             mandatory=True, parent=True, readonly=True, fk="ZC_OpeningBalance"),
+        dict(col="Line", name="Line", ref=INTEGER, ddl="NUMERIC(10) NOT NULL", mandatory=True),
+        dict(col="ZC_LegacyCode", name="Legacy account", ref=STRING, ddl="VARCHAR(40) NOT NULL", length=40,
+             mandatory=True, identifier=1),
+        dict(col="ZC_LegacyName", name="Legacy account name", ref=STRING, ddl="VARCHAR(120)", length=120),
+        dict(col="Account_ID", name="Account", ref=SEARCH, refvalue=ACCOUNT_REF_VALUE, ddl="NUMERIC(10)",
+             fk="C_ElementValue", help="Account in the new chart. Filled from a matching code or an earlier mapping."),
+        dict(col="ZC_LegacyAmt", name="Legacy balance", ref=AMOUNT, ddl="NUMERIC DEFAULT 0 NOT NULL", default="0",
+             mandatory=True, help="Balance in the legacy trial balance: debit positive, credit negative."),
+        dict(col="ZC_AdjustmentAmt", name="Adjustment", ref=AMOUNT, ddl="NUMERIC DEFAULT 0", default="0",
+             help="Clean-up or audit adjustment, debit positive."),
+        dict(col="ZC_AdjustmentNote", name="Reason for adjustment", ref=STRING, ddl="VARCHAR(255)", length=255,
+             help="Audit adjustment number, write-off approval or correction."),
+        dict(col="ZC_OpeningAmt", name="Opening balance", ref=AMOUNT, ddl="NUMERIC", readonly=True,
+             help="Legacy balance plus adjustment; worked out by Check and Reconcile."),
+        dict(col="ZC_AuditedAmt", name="Audited balance", ref=AMOUNT, ddl="NUMERIC",
+             help="Figure in the audited financial statements, debit positive. Leave empty if none."),
+        dict(col="ZC_CheckNote", name="Check result", ref=STRING, ddl="VARCHAR(255)", length=255, readonly=True),
+        dict(col="Processed", name="Processed", ref=YESNO, ddl="CHAR(1) DEFAULT 'N' NOT NULL", default="N",
+             readonly=True, hidden=True),
+    ]),
+    dict(id=1091512, table="ZC_OpeningItem", name="Opening Sub-ledger Item", window=1091509, col_base=1092080, cols=[
+        dict(col="ZC_OpeningBalance_ID", name="Opening balance", ref=TABLEDIR, ddl="NUMERIC(10) NOT NULL",
+             mandatory=True, parent=True, readonly=True, fk="ZC_OpeningBalance"),
+        dict(col="Line", name="Line", ref=INTEGER, ddl="NUMERIC(10) NOT NULL", mandatory=True),
+        dict(col="ZC_OpeningItemType", name="Type", ref=LIST, refvalue=REF_OB_ITEM_TYPE, ddl="CHAR(2) NOT NULL",
+             length=2, mandatory=True),
+        dict(col="ZC_PartnerCode", name="Partner code in file", ref=STRING, ddl="VARCHAR(40)", length=40),
+        dict(col="C_BPartner_ID", name="Business partner", ref=SEARCH, ddl="NUMERIC(10)", fk="C_BPartner"),
+        dict(col="ZC_LegacyRef", name="Legacy reference", ref=STRING, ddl="VARCHAR(60) NOT NULL", length=60,
+             mandatory=True, identifier=1, help="Legacy invoice, credit note, item or asset number."),
+        dict(col="DateDoc", name="Document date", ref=DATE, ddl="TIMESTAMP"),
+        dict(col="Description", name="Description", ref=STRING, ddl="VARCHAR(255)", length=255),
+        dict(col="ZC_ItemAmt", name="Amount", ref=AMOUNT, ddl="NUMERIC DEFAULT 0 NOT NULL", default="0", mandatory=True,
+             help="Amount owed (customer or supplier invoice; negative for a credit note) or value (stock, asset)."),
+        dict(col="Account_ID", name="Control account", ref=SEARCH, refvalue=ACCOUNT_REF_VALUE, ddl="NUMERIC(10)",
+             fk="C_ElementValue"),
+        dict(col="C_Invoice_ID", name="Opening invoice", ref=SEARCH, ddl="NUMERIC(10)", readonly=True, fk="C_Invoice"),
+        dict(col="ZC_CheckNote", name="Check result", ref=STRING, ddl="VARCHAR(255)", length=255, readonly=True),
+        dict(col="Processed", name="Processed", ref=YESNO, ddl="CHAR(1) DEFAULT 'N' NOT NULL", default="N",
+             readonly=True, hidden=True),
+        dict(col="C_BankAccount_ID", name="Bank or M-Pesa account", ref=TABLEDIR, ddl="NUMERIC(10)", fk="C_BankAccount",
+             help="For bank balances: the account; the file gives its account number."),
+        dict(col="C_BankStatement_ID", name="Opening statement", ref=TABLEDIR, ddl="NUMERIC(10)", readonly=True,
+             fk="C_BankStatement"),
+    ]),
 ]
 
 # --- columns added to iDempiere tables ----------------------------------------------------------------
@@ -429,6 +528,7 @@ MENUS = [  # (id, name, action, window or process, seq)
     (1091511, "Goods Inspection", "W", 1091507, 110),
     (1091512, "Statement Matching Rules", "W", 1091508, 120),
     (1091513, "Bank Reconciliation Statement", "P", PROC_BANK_REC, 130),
+    (1091514, "Opening Balances", "W", 1091509, 140),
 ]
 
 # Windows over iDempiere tables with chosen fields: (column, read-only, hidden)
@@ -474,6 +574,13 @@ MULTI_WINDOWS = [
     dict(id=1091508, name="Statement Matching Rules", wtype="M",
          desc="Texts in bank and M-Pesa statement lines that mean a bank charge, tariff or interest, and their charges",
          tabs=[dict(id=1091512, table=1091509, name="Rule", level=0, seq=10, field_base=1091900)]),
+    dict(id=1091509, name="Opening Balances", wtype="T",
+         desc="Legacy trial balance and sub-ledgers at go-live: map, adjust to audited figures, reconcile, sign off, post",
+         tabs=[dict(id=1091513, table=1091510, name="Opening Balance", level=0, seq=10, field_base=1092200),
+               dict(id=1091514, table=1091511, name="Trial Balance", level=1, seq=20, field_base=1092240,
+                    link="ZC_OpeningBalance_ID", order="ZC_OpeningBalanceLine.Line"),
+               dict(id=1091515, table=1091512, name="Sub-ledger Items", level=1, seq=30, field_base=1092280,
+                    link="ZC_OpeningBalance_ID", order="ZC_OpeningItem.Line")]),
 ]
 
 # validation rules
@@ -492,7 +599,7 @@ def column_sql(w, cid, tid_expr, tn, c, el, element_ids):
                               AMOUNT: 22, INTEGER: 10}.get(c["ref"], 10))
     w(f"INSERT INTO AD_Column (AD_Column_ID,AD_Client_ID,AD_Org_ID,IsActive,Created,CreatedBy,Updated,UpdatedBy,Name,Description,Version,EntityType,ColumnName,AD_Table_ID,AD_Reference_ID,AD_Reference_Value_ID,AD_Val_Rule_ID,AD_Process_ID,FieldLength,DefaultValue,IsKey,IsParent,IsMandatory,IsUpdateable,IsIdentifier,SeqNo,IsTranslated,IsEncrypted,IsSelectionColumn,AD_Element_ID,IsAlwaysUpdateable,IsAutocomplete,IsAllowCopy,IsToolbarButton,IsSecure,IsPartitionKey,FKConstraintType,AD_Column_UU) "
       f"SELECT {cid},0,0,'Y',now(),100,now(),100,{name_expr},{q(c.get('help'))},0,{q(ENTITY)},{q(c['col'])},{tid_expr},{c['ref']},{q(c.get('refvalue'))},{q(c.get('valrule'))},{q(c.get('process'))},{length},{q(c.get('default'))},"
-      f"{q('Y' if c.get('key') else 'N')},{q('Y' if c.get('parent') else 'N')},{q('Y' if c.get('mandatory') else 'N')},{q(updateable)},{q('Y' if c.get('identifier') else 'N')},{c.get('identifier', 0)},'N','N','N',{el},'N','N','Y',{q('N' if c['ref'] == BUTTON else 'Y')},'N','N',{q('D' if c.get('fk') else 'N')},{q(uu('column', tn + '.' + c['col']))} "
+      f"{q('Y' if c.get('key') else 'N')},{q('Y' if c.get('parent') else 'N')},{q('Y' if c.get('mandatory') else 'N')},{q(updateable)},{q('Y' if c.get('identifier') else 'N')},{c.get('identifier', 0)},'N','N','N',{el},{q('Y' if c.get('always') else 'N')},'N','Y',{q('N' if c['ref'] == BUTTON else 'Y')},'N','N',{q('D' if c.get('fk') else 'N')},{q(uu('column', tn + '.' + c['col']))} "
       f"WHERE NOT EXISTS (SELECT 1 FROM AD_Column WHERE AD_Column_ID={cid});")
 
 
@@ -566,7 +673,7 @@ def main():
         w(f"INSERT INTO AD_Sequence (AD_Sequence_ID,AD_Client_ID,AD_Org_ID,IsActive,Created,CreatedBy,Updated,UpdatedBy,Name,Description,IsTableID,IsAutoSequence,IncrementNo,StartNo,CurrentNext,CurrentNextSys,StartNewMonth,IsOrgLevelSequence,AD_Sequence_UU) "
           f"SELECT {tid},0,0,'Y',now(),100,now(),100,{q(tn)},{q('Table ' + tn)},'Y','Y',1,1000000,1000000,200000,'N','N',{q(uu('sequence', tn))} WHERE NOT EXISTS (SELECT 1 FROM AD_Sequence WHERE Name={q(tn)} AND IsTableID='Y');")
         for ci, c in enumerate(cols):
-            cid = 1091500 + 40 * ti + ci
+            cid = t.get("col_base", 1091500 + 40 * ti) + ci
             cn = c["col"]
             if cn in elements:
                 el = elements[cn]
@@ -634,6 +741,8 @@ def main():
             link = col_ids[(t["id"], tab["link"])] if tab.get("link") else "NULL"
             w(f"INSERT INTO AD_Tab (AD_Tab_ID,AD_Client_ID,AD_Org_ID,IsActive,Created,CreatedBy,Updated,UpdatedBy,Name,AD_Table_ID,AD_Window_ID,SeqNo,TabLevel,IsSingleRow,IsTranslationTab,IsReadOnly,AD_Column_ID,HasTree,IsSortTab,EntityType,IsInsertRecord,IsAdvancedTab,TreeDisplayedOn,AD_Tab_UU) "
               f"SELECT {tab['id']},0,0,'Y',now(),100,now(),100,{q(tab['name'])},{t['id']},{win['id']},{tab['seq']},{tab['level']},{q('Y' if tab['level'] == 0 else 'N')},'N','N',{link},'N','N',{q(ENTITY)},'Y','N','B',{q(uu('tab', str(tab['id'])))} WHERE NOT EXISTS (SELECT 1 FROM AD_Tab WHERE AD_Tab_ID={tab['id']});")
+            if tab.get("order"):
+                w(f"UPDATE AD_Tab SET OrderByClause={q(tab['order'])} WHERE AD_Tab_ID={tab['id']} AND OrderByClause IS NULL;")
             seq = 0
             for ci, c in enumerate(std_cols(t) + t["cols"]):
                 hidden = bool(c.get("hidden")) or c["col"] == tab.get("link")

@@ -69,6 +69,12 @@ public class ControlsEventHandler extends AbstractEventHandler {
     /** PO attribute set by ZenithCore processes that have already enforced their own approvals. */
     public static final String APPROVED_ELSEWHERE = "ZC_ApprovedElsewhere";
 
+    /**
+     * PO attribute on opening-balance invoices and journals created by Post Opening Balances: historical,
+     * audited and signed off, so no procurement, withholding, budget or approval control applies to them.
+     */
+    public static final String OPENING_BALANCE = "ZC_OpeningBalance";
+
     private static final CLogger log = CLogger.getCLogger(ControlsEventHandler.class);
 
     /** Documents checked, with the column holding their amount for approval thresholds. */
@@ -91,6 +97,9 @@ public class ControlsEventHandler extends AbstractEventHandler {
         PO po = getPO(event);
         if ("M_InventoryLine".equals(po.get_TableName())) {
             countLineChanged(event, po);
+            return;
+        }
+        if (po.get_Attribute(OPENING_BALANCE) != null) {
             return;
         }
         if (IEventTopics.DOC_BEFORE_PREPARE.equals(event.getTopic())) {
