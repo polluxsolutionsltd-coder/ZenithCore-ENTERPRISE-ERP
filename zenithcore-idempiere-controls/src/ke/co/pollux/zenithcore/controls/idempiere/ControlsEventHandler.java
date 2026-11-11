@@ -41,6 +41,7 @@ import org.osgi.service.event.Event;
 
 import ke.co.pollux.zenithcore.controls.BlindCount;
 import ke.co.pollux.zenithcore.controls.BankMatch;
+import ke.co.pollux.zenithcore.controls.BoardPack;
 import ke.co.pollux.zenithcore.controls.BudgetCheck;
 import ke.co.pollux.zenithcore.controls.ControlResult;
 import ke.co.pollux.zenithcore.controls.GoodsInspection;
@@ -230,7 +231,37 @@ public class ControlsEventHandler extends AbstractEventHandler {
             results.add(BankMatch.uniqueReference(label, ref.trim(), other));
         }
 
-        // 7. Budget check
+        // 7. Business unit on income and expenditure
+        if (MSysConfig.getBooleanValue("ZC_BUSINESS_UNIT_REQUIRED", false, clientId)) {
+            String sql = switch (table) {
+                case "GL_Journal" -> "SELECT l.Line, ev.AccountType IN ('R','E'), COALESCE(l.User1_ID, vc.User1_ID, 0)>0 "
+                        + "FROM GL_JournalLine l JOIN C_ValidCombination vc ON vc.C_ValidCombination_ID=l.C_ValidCombination_ID "
+                        + "JOIN C_ElementValue ev ON ev.C_ElementValue_ID=vc.Account_ID WHERE l.GL_Journal_ID=? AND l.IsActive='Y'";
+                // revenue on customer invoices; charges and services (not stocked items) on supplier invoices
+                case "C_Invoice" -> "SELECT l.Line, i.IsSOTrx='Y' OR l.C_Charge_ID>0 OR COALESCE(p.IsStocked,'N')='N', "
+                        + "COALESCE(l.User1_ID, i.User1_ID, 0)>0 FROM C_InvoiceLine l JOIN C_Invoice i ON i.C_Invoice_ID=l.C_Invoice_ID "
+                        + "LEFT JOIN M_Product p ON p.M_Product_ID=l.M_Product_ID WHERE l.C_Invoice_ID=? AND l.IsActive='Y' "
+                        + "AND l.ZC_IsWHTLine='N' AND (l.C_Charge_ID>0 OR l.M_Product_ID>0)";
+                case "C_Payment" -> "SELECT 10, C_Charge_ID>0, COALESCE(User1_ID,0)>0 FROM C_Payment WHERE C_Payment_ID=?";
+                default -> null;
+            };
+            if (sql != null) {
+                List<BoardPack.UnitLine> lines = new ArrayList<>();
+                try (java.sql.PreparedStatement ps = DB.prepareStatement(sql, po.get_TrxName())) {
+                    ps.setInt(1, po.get_ID());
+                    try (java.sql.ResultSet rs = ps.executeQuery()) {
+                        while (rs.next()) {
+                            lines.add(new BoardPack.UnitLine(rs.getInt(1), rs.getBoolean(2), rs.getBoolean(3)));
+                        }
+                    }
+                } catch (java.sql.SQLException e) {
+                    throw new IllegalStateException(e);
+                }
+                results.add(BoardPack.requireUnit(label, lines));
+            }
+        }
+
+        // 8. Budget check
         boolean budgetDoc = "M_Requisition".equals(table) || ("C_Order".equals(table) && !po.get_ValueAsBoolean("IsSOTrx"))
                 || ("C_Invoice".equals(table) && MDocType.DOCBASETYPE_APInvoice.equals(base))
                 || ("C_Payment".equals(table) && !po.get_ValueAsBoolean("IsReceipt") && po.get_ValueAsInt("C_Charge_ID") > 0
