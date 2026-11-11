@@ -40,6 +40,8 @@ When the documents arrive, add them under `docs/etims/` and start the work below
 
 **What unblocks it.** The current version of each template, added under `docs/payroll/templates/`:
 - [ ] KRA iTax P10 (PAYE) return template, current version
+- [ ] KRA iTax withholding income tax and withholding VAT upload templates (for the Withholding Tax Register)
+- [ ] KRA iTax VAT return (VAT3) template
 - [ ] NSSF employer contributions upload format (NSSF Act 2013 tiers)
 - [ ] SHA employer SHIF contributions upload format
 - [ ] Affordable Housing Levy return format (if separate from the P10)

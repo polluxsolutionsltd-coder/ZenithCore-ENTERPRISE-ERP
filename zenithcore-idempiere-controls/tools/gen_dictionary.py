@@ -38,11 +38,14 @@ def uu(kind, key):
     return _pg.uu("controls-" + kind, key)
 
 
-CORE_ELEMENTS = {"Value", "Name", "Description", "Processed", "DocBaseType", "C_Year_ID", "C_Activity_ID", "Account_ID"}
+CORE_ELEMENTS = {"Value", "Name", "Description", "Processed", "DocBaseType", "C_Year_ID", "C_Activity_ID", "Account_ID",
+                 "C_Charge_ID", "ValidFrom", "ValidTo", "C_Period_ID"}
 ACCOUNT_REF_VALUE = 362  # C_ElementValue (trx): posting accounts only
+NUMBER = 22
 
 # --- list references -------------------------------------------------------------------------------
 REF_PREQUAL, REF_AQ_STATUS, REF_AQ_SOURCE, REF_RISK = 1091500, 1091501, 1091502, 1091503
+REF_WHT_KIND = 1091504
 REFERENCES = [
     (REF_PREQUAL, "ZC Pre-qualification Status", [("P", "Pending"), ("Q", "Pre-qualified"), ("S", "Suspended"),
                                                  ("B", "Blacklisted")]),
@@ -50,11 +53,13 @@ REFERENCES = [
     (REF_AQ_SOURCE, "ZC Audit Source", [("EA", "External audit"), ("IA", "Internal audit"), ("BD", "Board or committee"),
                                         ("KR", "KRA"), ("OT", "Other")]),
     (REF_RISK, "ZC Risk Rating", [("H", "High"), ("M", "Medium"), ("L", "Low")]),
+    (REF_WHT_KIND, "ZC Withholding Kind", [("W", "Withholding income tax"), ("V", "Withholding VAT")]),
 ]
 
 # --- processes -------------------------------------------------------------------------------------
 PROC_CLOSE_AQ = 1091500
 PROC_BUDGET_APPROVE, PROC_BUDGET_STATUS = 1091501, 1091502
+PROC_WHT_REGISTER = 1091503
 PROCESSES = [
     (PROC_CLOSE_AQ, "ZC_AuditQueryClose", "Close Audit Query",
      "Closes an audit query once the management response and evidence are recorded. The person responsible for "
@@ -67,11 +72,16 @@ PROCESSES = [
     (PROC_BUDGET_STATUS, "ZC_BudgetStatus", "Budget Status Report",
      "Budget, spent, committed and available by cost centre and account for a financial year.",
      "ke.co.pollux.zenithcore.controls.idempiere.process.BudgetStatusReport"),
+    (PROC_WHT_REGISTER, "ZC_WithholdingRegister", "Withholding Tax Register",
+     "Withholding income tax and withholding VAT deducted from supplier invoices in a month, with supplier PINs and "
+     "payment dates, for remittance to KRA. CSV.",
+     "ke.co.pollux.zenithcore.controls.idempiere.process.WithholdingRegister"),
 ]
 
 PROCESS_PARAMS = [  # (id, process, column, name, reference, mandatory, seq, default)
     (1091500, PROC_BUDGET_STATUS, "C_Year_ID", "Financial year", TABLEDIR, True, 10, None),
     (1091501, PROC_BUDGET_STATUS, "C_Activity_ID", "Cost centre", TABLEDIR, False, 20, None),
+    (1091502, PROC_WHT_REGISTER, "C_Period_ID", "Month", TABLEDIR, True, 10, None),
 ]
 
 # --- client switches -------------------------------------------------------------------------------
@@ -87,6 +97,10 @@ SYSCONFIG = [  # (id, name, system default, description); each client sets its o
      "Y blocks requisitions, LPOs, supplier invoices not from an LPO, and direct payments that exceed the "
      "approved budget for their cost centre and account"),
     (1091504, "ZC_BUDGET_TOLERANCE_PCT", "0", "Percentage by which spending may exceed a budget line"),
+    (1091505, "ZC_WITHHOLDING", "N",
+     "Y adds withholding income tax and withholding VAT deduction lines to supplier invoices when they are prepared"),
+    (1091506, "ZC_WHVAT_AGENT", "N", "Y if the institution is an appointed withholding VAT agent"),
+    (1091507, "ZC_WHVAT_TYPE", "WHVAT", "Code of the withholding rate type that holds the withholding VAT rate"),
 ]
 
 # --- new tables ------------------------------------------------------------------------------------
@@ -155,6 +169,30 @@ TABLES = [
         dict(col="Processed", name="Processed", ref=YESNO, ddl="CHAR(1) DEFAULT 'N' NOT NULL", default="N",
              readonly=True, hidden=True),
     ]),
+    dict(id=1091504, table="ZC_WHTType", name="Withholding Type", window=1091504, cols=[
+        dict(col="Value", name="Code", ref=STRING, ddl="VARCHAR(20) NOT NULL", length=20, mandatory=True, identifier=1,
+             help="For example PROF, CONT, WHVAT. Products, charges and invoice lines refer to it."),
+        dict(col="Name", name="Type of payment", ref=STRING, ddl="VARCHAR(120) NOT NULL", length=120, mandatory=True,
+             identifier=2),
+        dict(col="ZC_TaxKind", name="Kind", ref=LIST, refvalue=REF_WHT_KIND, ddl="CHAR(1) DEFAULT 'W' NOT NULL", length=1,
+             default="W", mandatory=True),
+        dict(col="C_Charge_ID", name="Payable charge", ref=TABLEDIR, ddl="NUMERIC(10) NOT NULL", mandatory=True,
+             fk="C_Charge", help="Charge whose account holds the tax withheld until it is paid to KRA."),
+        dict(col="Description", name="Description", ref=STRING, ddl="VARCHAR(255)", length=255),
+    ]),
+    dict(id=1091505, table="ZC_WHTRate", name="Withholding Rate", window=1091504, cols=[
+        dict(col="ZC_WHTType_ID", name="Withholding type", ref=TABLEDIR, ddl="NUMERIC(10) NOT NULL", mandatory=True,
+             parent=True, readonly=True, fk="ZC_WHTType"),
+        dict(col="ZC_IsNonResident", name="Non-resident rate", ref=YESNO, ddl="CHAR(1) DEFAULT 'N' NOT NULL", default="N",
+             mandatory=True),
+        dict(col="ValidFrom", name="Valid from", ref=DATE, ddl="TIMESTAMP NOT NULL", mandatory=True),
+        dict(col="ValidTo", name="Valid to", ref=DATE, ddl="TIMESTAMP"),
+        dict(col="ZC_Rate", name="Rate %", ref=NUMBER, ddl="NUMERIC NOT NULL", mandatory=True),
+        dict(col="ZC_MonthlyThreshold", name="Monthly threshold", ref=AMOUNT, ddl="NUMERIC",
+             help="Residents: no withholding if the supplier's total of this type in the month is at or below this."),
+        dict(col="Description", name="Legal basis", ref=STRING, ddl="VARCHAR(255)", length=255,
+             help="Act, section and source, for example Income Tax Act s.35; KRA guide Nov 2023."),
+    ]),
 ]
 
 # --- columns added to iDempiere tables ----------------------------------------------------------------
@@ -171,9 +209,30 @@ EXTENSIONS = [  # (table, column spec)
                         help="Why the supplier is blacklisted, with the approving minute.")),
     ("M_Requisition", dict(col="C_Activity_ID", name="Cost centre", ref=TABLEDIR, ddl="NUMERIC(10)",
                            help="Cost centre whose budget the requisition is checked against.")),
+    ("C_BPartner", dict(col="ZC_IsNonResident", name="Non-resident", ref=YESNO, ddl="CHAR(1) DEFAULT 'N'", default="N",
+                        help="Non-resident rates of withholding tax apply.")),
+    ("C_BPartner", dict(col="ZC_IsVATRegistered", name="VAT-registered", ref=YESNO, ddl="CHAR(1) DEFAULT 'Y'", default="Y")),
+    ("C_BPartner", dict(col="ZC_IsWHTExempt", name="Withholding tax exemption", ref=YESNO, ddl="CHAR(1) DEFAULT 'N'",
+                        default="N", help="The supplier holds a KRA withholding tax exemption certificate.")),
+    ("C_BPartner", dict(col="ZC_IsWHVATExempt", name="Withholding VAT exemption", ref=YESNO, ddl="CHAR(1) DEFAULT 'N'",
+                        default="N", help="The supplier holds a KRA withholding VAT exemption certificate.")),
+    ("M_Product", dict(col="ZC_WHTType_ID", name="Withholding type", ref=TABLEDIR, ddl="NUMERIC(10)",
+                       help="Withholding tax type for this service, for example professional fees.")),
+    ("C_Charge", dict(col="ZC_WHTType_ID", name="Withholding type", ref=TABLEDIR, ddl="NUMERIC(10)")),
+    ("C_InvoiceLine", dict(col="ZC_WHTType_ID", name="Withholding type", ref=TABLEDIR, ddl="NUMERIC(10)",
+                           help="Overrides the product's or charge's withholding type on this line.")),
+    ("C_InvoiceLine", dict(col="ZC_IsWHTLine", name="Withholding deduction", ref=YESNO, ddl="CHAR(1) DEFAULT 'N'",
+                           default="N", readonly=True, help="Line added by ZenithCore for tax withheld.")),
+    ("C_InvoiceLine", dict(col="ZC_WHTBase", name="Withholding base", ref=AMOUNT, ddl="NUMERIC", readonly=True,
+                           help="Amount the tax withheld on this deduction line was calculated on.")),
 ]
 EXTENSION_FIELDS = [  # (field id, tab id, table, column, seq): editable fields on iDempiere tabs
     (1091954, 641, "M_Requisition", "C_Activity_ID", 75),
+    (1091955, 180, "M_Product", "ZC_WHTType_ID", 615),
+    (1091956, 237, "C_Charge", "ZC_WHTType_ID", 75),
+    (1091957, 291, "C_InvoiceLine", "ZC_WHTType_ID", 355),
+    (1091958, 291, "C_InvoiceLine", "ZC_IsWHTLine", 356),
+    (1091959, 291, "C_InvoiceLine", "ZC_WHTBase", 357),
 ]
 
 # Supplier pre-qualification window: a tab on C_BPartner limited to vendors
@@ -183,6 +242,7 @@ PREQUAL_FIELDS = [  # (column, read-only)
     ("ZC_TCCNo", False), ("ZC_TCCExpiry", False), ("ZC_BlacklistReason", False),
     # hidden, but iDempiere needs the tenant and organization in the tab to allow updates
     ("AD_Client_ID", True, True), ("AD_Org_ID", True, True), ("IsActive", True, True),
+    ("ZC_IsNonResident", False), ("ZC_IsVATRegistered", False), ("ZC_IsWHTExempt", False), ("ZC_IsWHVATExempt", False),
 ]
 # Read-only copies on the Business Partner window's Vendor tab, so buyers see the status
 VENDOR_TAB = 224
@@ -204,6 +264,8 @@ MENUS = [  # (id, name, action, window or process, seq)
     (1091503, "Audit Query Register", "W", 1091501, 30),
     (1091504, "Budgets (Kenya)", "W", 1091503, 40),
     (1091505, "Budget Status Report", "P", PROC_BUDGET_STATUS, 50),
+    (1091506, "Withholding Tax Rates (Kenya)", "W", 1091504, 60),
+    (1091507, "Withholding Tax Register", "P", PROC_WHT_REGISTER, 70),
 ]
 
 # Windows with header and line tabs. Field IDs: field_base + position.
@@ -213,6 +275,10 @@ MULTI_WINDOWS = [
          tabs=[dict(id=1091503, table=1091502, name="Budget", level=0, seq=10, field_base=1091600),
                dict(id=1091504, table=1091503, name="Budget Line", level=1, seq=20, field_base=1091640,
                     link="ZC_Budget_ID")]),
+    dict(id=1091504, name="Withholding Tax Rates (Kenya)", wtype="M",
+         desc="Withholding income tax and withholding VAT types and their dated rates",
+         tabs=[dict(id=1091505, table=1091504, name="Withholding Type", level=0, seq=10, field_base=1091680),
+               dict(id=1091506, table=1091505, name="Rate", level=1, seq=20, field_base=1091720, link="ZC_WHTType_ID")]),
 ]
 
 
@@ -318,8 +384,8 @@ def main():
         if c["col"] in CORE_ELEMENTS:
             el = f"(SELECT AD_Element_ID FROM AD_Element WHERE ColumnName={q(c['col'])} AND AD_Client_ID=0)"
         else:
-            element_sql(w, cid, c)
-            el = str(cid)
+            element_sql(w, cid, c)  # skipped if an element of that name exists
+            el = f"(SELECT AD_Element_ID FROM AD_Element WHERE UPPER(ColumnName)=UPPER({q(c['col'])}))"
         column_sql(w, cid, f"(SELECT AD_Table_ID FROM AD_Table WHERE TableName={q(tn)})", tn, c, el, elements)
         col_ids[(tn, c["col"])] = cid
     w("")

@@ -66,11 +66,16 @@ public class ControlsEventHandler extends AbstractEventHandler {
         for (String table : DOCUMENTS.keySet()) {
             registerTableEvent(IEventTopics.DOC_BEFORE_COMPLETE, table);
         }
+        registerTableEvent(IEventTopics.DOC_BEFORE_PREPARE, "C_Invoice");
     }
 
     @Override
     protected void doHandleEvent(Event event) {
         PO po = getPO(event);
+        if (IEventTopics.DOC_BEFORE_PREPARE.equals(event.getTopic())) {
+            prepareInvoice(event, po);
+            return;
+        }
         try {
             List<String> problems = new ArrayList<>();
             for (ControlResult r : check(po)) {
@@ -84,6 +89,25 @@ public class ControlsEventHandler extends AbstractEventHandler {
         } catch (RuntimeException e) {
             log.severe("ZenithCore controls failed on " + po.get_TableName() + " " + po.get_ID() + ": " + e);
             addErrorMessage(event, "ZenithCore controls could not check this document: " + e.getMessage());
+        }
+    }
+
+    /** Withholding deduction lines on supplier invoices (client setting ZC_WITHHOLDING). */
+    private void prepareInvoice(Event event, PO po) {
+        try {
+            MInvoice inv = (MInvoice) po;
+            MDocType dt = MDocType.get(inv.getC_DocTypeTarget_ID() > 0 ? inv.getC_DocTypeTarget_ID() : inv.getC_DocType_ID());
+            if (dt == null || !MDocType.DOCBASETYPE_APInvoice.equals(dt.getDocBaseType()) || inv.getReversal_ID() > 0
+                    || !MSysConfig.getBooleanValue("ZC_WITHHOLDING", false, inv.getAD_Client_ID())) {
+                return;
+            }
+            List<String> problems = WithholdingService.apply(inv);
+            if (!problems.isEmpty()) {
+                addErrorMessage(event, "Withholding: " + String.join("; ", problems));
+            }
+        } catch (RuntimeException e) {
+            log.severe("ZenithCore withholding failed on invoice " + po.get_ID() + ": " + e);
+            addErrorMessage(event, "ZenithCore withholding could not be calculated: " + e.getMessage());
         }
     }
 
@@ -183,8 +207,8 @@ public class ControlsEventHandler extends AbstractEventHandler {
             case "C_Invoice" -> {
                 MInvoice i = (MInvoice) po;
                 for (MInvoiceLine l : i.getLines(true)) {
-                    if (l.getC_OrderLine_ID() > 0) {
-                        continue; // already committed on its LPO
+                    if (l.getC_OrderLine_ID() > 0 || WithholdingService.isDeductionLine(l)) {
+                        continue; // already committed on its LPO, or tax withheld
                     }
                     out.add(new BudgetLedger.Line("line " + l.getLine(), l.getC_Activity_ID() > 0 ? l.getC_Activity_ID() : headerActivity,
                             ledger.accountFor(l.getM_Product_ID(), l.getC_Charge_ID()),
@@ -244,6 +268,9 @@ public class ControlsEventHandler extends AbstractEventHandler {
         for (MInvoiceLine il : invoice.getLines(true)) {
             if (il.getM_Product_ID() <= 0 && il.getC_Charge_ID() <= 0 && il.getLineNetAmt().signum() == 0) {
                 continue; // description line
+            }
+            if (WithholdingService.isDeductionLine(il)) {
+                continue; // tax withheld, not a purchase
             }
             String item = il.getM_Product_ID() > 0 ? MProduct.get(il.getM_Product_ID()).getName()
                     : il.getDescription() != null ? il.getDescription() : "charge";
