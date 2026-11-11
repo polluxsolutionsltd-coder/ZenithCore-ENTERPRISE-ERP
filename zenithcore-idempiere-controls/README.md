@@ -67,6 +67,21 @@ Invalid) and the user sees every reason at once. Reversals are not checked.
     internal-use line needs a reason (Reason field on the count and internal-use lines).
   - Write-offs (stock removed for a write-off reason, at current cost) at or above the set value must be completed
     by someone who is neither the preparer nor a custodian of the store. Cost adjustment documents are not affected.
+- **Blind stock counts** (client setting `ZC_BLIND_COUNT` = Y).
+  - **Blind Stock Count** window (works in a tablet browser): open counts with their lines showing locator, item,
+    attribute and unit, and a **Counted** field. Book quantities are not on the screen, and count sheets start
+    empty. Each count records who counted it and when. Items found that are not on the sheet can be added.
+    Screenshot: [docs/images/blind-count-sheet.png](../docs/images/blind-count-sheet.png).
+  - **Submit Count** needs every line counted (0 for an item not there) and, with blind counting on, no line counted
+    by the store's custodian or deputy. It takes the book quantity at that moment and the counted quantities into
+    the count, and locks the lines; counts cannot be changed afterwards.
+  - The custodian then gives a reason for each difference (Physical Inventory window) and the count is posted under
+    the stores controls (write-off approval). A count that was not submitted cannot be posted.
+  - **Stock Count Variance Report** (menu): every difference in submitted and posted counts in a period, by item,
+    with book, counted, difference, value at current cost, reason and counter, then totals by store and by cause.
+    PDF. It shows book quantities, so it is for custodians and Finance, not counters. Sample:
+    [docs/images/count-variance-report.png](../docs/images/count-variance-report.png).
+  - Counters should have the Blind Stock Count window only, not Physical Inventory (which shows book quantities).
 - **Audit Query Register** window: reference, title, raised by (external or internal audit, board, KRA),
   financial year, risk, finding, recommendation, responsible person, due date, management response, status.
   **Close Audit Query** needs the management response, at least one evidence file attached, and a closer who
@@ -103,6 +118,12 @@ Verified on 10 November 2026 in iDempiere 13 (GardenWorld), through the web UI:
   completed by GardenAdmin; count ZC-T14 prepared by GardenAdmin was refused (not prepared by the custodian);
   receipt ZC-T15 was refused for GardenAdmin and completed by GardenUser. Movements and deputies are covered by the
   rule tests, not yet in the UI.
+- Blind counts, 10 November 2026: count sheet ZC-T16 (HQ Warehouse, four items, prepared by GardenUser, the
+  custodian). GardenUser entered two counts and Submit Count was refused (two lines not counted; two counted by a
+  custodian). GardenAdmin counted Oak Tree 17, Elm Tree 15, Holly Bush 9; submit was refused while Azalea Bush was
+  uncounted, then accepted with Azalea Bush 6: book quantities 19, 15, 5, 10 taken at submission. Posting ZC-T17,
+  never submitted, was refused. With reasons given, GardenAdmin posted ZC-T16. The variance report for November
+  showed the differences at cost by store and cause (net -222.63, including the earlier ZC-T13).
 - Not yet exercised in the UI: blacklisted supplier, supplier payments (gate and budget), LPO completion under
   the gate, requisitions and supplier invoices not from an LPO under the budget check (same code paths, covered
   by the rule tests).
@@ -120,7 +141,8 @@ SQL by hand). On GardenWorld only: `migration/postgresql/demo-garden-world-acces
 `testdata/garden-world-controls.sql` (rules, switches, sample suppliers, draft documents, an audit query) and
 `testdata/garden-world-budget.sql` (cost centres, a budget to approve, draft LPOs and an invoice) and
 `testdata/garden-world-withholding.sql` (payable charges, types and rates, an LSO and its invoice) and
-`testdata/garden-world-stores.sql` (custodian, reasons, three counts and a receipt).
+`testdata/garden-world-stores.sql` (custodian, reasons, three counts and a receipt) and
+`testdata/garden-world-blind-count.sql` (blind counting on, two count sheets).
 
 ## Notes for developers
 
